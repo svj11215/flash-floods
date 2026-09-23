@@ -1,0 +1,26 @@
+# Dependencies
+node_modules/
+frontend/node_modules/
+.venv/
+env/
+venv/
+
+# Build artifacts
+frontend/dist/
+dist/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Binaries and local tools
+cloudflared.exe
+*.log
+
+# OS / Editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
