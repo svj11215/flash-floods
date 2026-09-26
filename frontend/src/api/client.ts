@@ -13,7 +13,18 @@ import type {
 import { staticData } from '../data/staticData';
 import { getHospitalsForState } from '../data/demoHospitals';
 
-const API_BASE = '/api';
+// Support VITE_API_BASE_URL for production (e.g. Render/Vercel)
+// while defaulting to '/api' for local Vite dev proxy
+const normalizeApiBase = (): string => {
+  const envUrl = (import.meta.env.VITE_API_BASE_URL || '').trim();
+  if (!envUrl) {
+    return '/api';
+  }
+  const cleanUrl = envUrl.replace(/\/+$/, '');
+  return cleanUrl.endsWith('/api') ? cleanUrl : `${cleanUrl}/api`;
+};
+
+const API_BASE = normalizeApiBase();
 
 // In-memory state for static/offline/GitHub Pages deployment
 let activeLocations: LocationData[] = [...staticData.locations];

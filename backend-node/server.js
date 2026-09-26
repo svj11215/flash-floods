@@ -19,54 +19,117 @@ app.use(express.json());
 // ==========================================
 let firebaseAdminInitialized = false;
 
+// Helper to safely parse FIREBASE_SERVICE_ACCOUNT (JSON string, escaped JSON, or Base64)
+function parseServiceAccountString(raw) {
+  if (!raw || typeof raw !== 'string') return null;
+  let str = raw.trim();
+
+  // Strip enclosing single or double quotes
+  if ((str.startsWith("'") && str.endsWith("'")) || (str.startsWith('"') && str.endsWith('"'))) {
+    str = str.slice(1, -1).trim();
+  }
+
+  // Handle escaped JSON string (e.g. \"type\": \"service_account\")
+  if (str.includes('\\"')) {
+    try {
+      str = JSON.parse(`"${str}"`);
+    } catch (_) {}
+  }
+
+  // Direct JSON
+  if (str.startsWith('{')) {
+    try {
+      return JSON.parse(str);
+    } catch (e) {
+      try {
+        const normalized = str.replace(/\r\n/g, '\\n').replace(/\n/g, '\\n');
+        return JSON.parse(normalized);
+      } catch (_) {}
+    }
+  }
+
+  // Base64 encoded JSON
+  try {
+    const decoded = Buffer.from(str, 'base64').toString('utf8');
+    if (decoded.trim().startsWith('{')) {
+      return JSON.parse(decoded);
+    }
+  } catch (_) {}
+
+  return null;
+}
+
+// Helper to resolve local service account file path
+function resolveServiceAccountPath() {
+  const candidates = [];
+  if (process.env.FIREBASE_SERVICE_ACCOUNT_PATH) {
+    const custom = process.env.FIREBASE_SERVICE_ACCOUNT_PATH.trim();
+    candidates.push(custom);
+    candidates.push(path.resolve(process.cwd(), custom));
+    candidates.push(path.resolve(__dirname, custom));
+  }
+  candidates.push(path.join(__dirname, 'serviceAccountKey.json'));
+  candidates.push(path.join(process.cwd(), 'serviceAccountKey.json'));
+  candidates.push(path.join(__dirname, '..', 'serviceAccountKey.json'));
+
+  for (const c of candidates) {
+    try {
+      if (c && fs.existsSync(c)) {
+        return c;
+      }
+    } catch (_) {}
+  }
+  return null;
+}
+
 function initFirebaseAdmin() {
   if (admin.apps.length > 0) {
     firebaseAdminInitialized = true;
     return;
   }
 
-  try {
-    // 1. Check for JSON service account file in root or backend-node
-    const keyPath = process.env.FIREBASE_SERVICE_ACCOUNT_PATH || 
-                    path.join(__dirname, 'serviceAccountKey.json') ||
-                    path.join(__dirname, '..', 'serviceAccountKey.json');
+  // 1. Production precedence: FIREBASE_SERVICE_ACCOUNT environment variable (JSON string or Base64)
+  if (process.env.FIREBASE_SERVICE_ACCOUNT && process.env.FIREBASE_SERVICE_ACCOUNT.trim()) {
+    try {
+      const parsed = parseServiceAccountString(process.env.FIREBASE_SERVICE_ACCOUNT);
+      if (parsed && (parsed.project_id || parsed.projectId)) {
+        if (parsed.private_key && typeof parsed.private_key === 'string') {
+          parsed.private_key = parsed.private_key.replace(/\\n/g, '\n');
+        }
+        admin.initializeApp({
+          credential: admin.credential.cert(parsed)
+        });
+        firebaseAdminInitialized = true;
+        console.log(`🔥 [Firebase Admin] Initialized from production FIREBASE_SERVICE_ACCOUNT (Project: ${parsed.project_id || parsed.projectId})`);
+        return;
+      }
+    } catch (err) {
+      console.warn(`⚠️ [Firebase Admin] Error initializing from FIREBASE_SERVICE_ACCOUNT:`, err.message);
+    }
+  }
 
-    if (fs.existsSync(keyPath)) {
+  // 2. Local precedence: FIREBASE_SERVICE_ACCOUNT_PATH or local serviceAccountKey.json file
+  const keyPath = resolveServiceAccountPath();
+  if (keyPath && fs.existsSync(keyPath)) {
+    try {
       const serviceAccount = JSON.parse(fs.readFileSync(keyPath, 'utf8'));
+      if (serviceAccount.private_key && typeof serviceAccount.private_key === 'string') {
+        serviceAccount.private_key = serviceAccount.private_key.replace(/\\n/g, '\n');
+      }
       admin.initializeApp({
         credential: admin.credential.cert(serviceAccount)
       });
       firebaseAdminInitialized = true;
-      console.log('🔥 [Firebase Admin] Initialized from serviceAccountKey.json');
+      console.log(`🔥 [Firebase Admin] Initialized from ${path.basename(keyPath)} (Project: ${serviceAccount.project_id})`);
       return;
+    } catch (err) {
+      console.warn(`⚠️ [Firebase Admin] Error initializing from ${keyPath}:`, err.message);
     }
+  }
 
-    // 2. Check for FIREBASE_SERVICE_ACCOUNT environment variable (JSON string or base64)
-    if (process.env.FIREBASE_SERVICE_ACCOUNT) {
-      let saString = process.env.FIREBASE_SERVICE_ACCOUNT.trim();
-      if (saString.startsWith('{')) {
-        const serviceAccount = JSON.parse(saString);
-        admin.initializeApp({
-          credential: admin.credential.cert(serviceAccount)
-        });
-        firebaseAdminInitialized = true;
-        console.log('🔥 [Firebase Admin] Initialized from FIREBASE_SERVICE_ACCOUNT string');
-        return;
-      } else {
-        // Base64 encoded
-        const decoded = Buffer.from(saString, 'base64').toString('utf8');
-        const serviceAccount = JSON.parse(decoded);
-        admin.initializeApp({
-          credential: admin.credential.cert(serviceAccount)
-        });
-        firebaseAdminInitialized = true;
-        console.log('🔥 [Firebase Admin] Initialized from Base64 FIREBASE_SERVICE_ACCOUNT');
-        return;
-      }
-    }
-
-    // 3. Check for individual env variables
-    if (process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_CLIENT_EMAIL && process.env.FIREBASE_PRIVATE_KEY) {
+  // 3. Fallback: Individual environment variables
+  if (process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_CLIENT_EMAIL && process.env.FIREBASE_PRIVATE_KEY) {
+    try {
       const privateKey = process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n');
       admin.initializeApp({
         credential: admin.credential.cert({
@@ -76,17 +139,21 @@ function initFirebaseAdmin() {
         })
       });
       firebaseAdminInitialized = true;
-      console.log('🔥 [Firebase Admin] Initialized from individual environment variables');
+      console.log(`🔥 [Firebase Admin] Initialized from individual environment variables (Project: ${process.env.FIREBASE_PROJECT_ID})`);
       return;
+    } catch (err) {
+      console.warn('⚠️ [Firebase Admin] Error initializing from individual env vars:', err.message);
     }
+  }
 
-    // 4. Default Application Credentials fallback
+  // 4. Default Application Credentials fallback
+  try {
     admin.initializeApp();
     firebaseAdminInitialized = true;
     console.log('🔥 [Firebase Admin] Initialized with Application Default Credentials');
   } catch (err) {
     console.warn('⚠️ [Firebase Admin] Notice: Firebase credentials not yet provided or invalid. Running in Simulation/Demo mode for hackathon testing.');
-    console.warn('   Add serviceAccountKey.json to backend-node/ or set FIREBASE_SERVICE_ACCOUNT in .env.');
+    console.warn('   Add serviceAccountKey.json to backend-node/ or set FIREBASE_SERVICE_ACCOUNT in Render / .env.');
     firebaseAdminInitialized = false;
   }
 }
@@ -278,8 +345,8 @@ async function sendFloodAlert(user, alertData = {}) {
 // 5. API ROUTES
 // ==========================================
 
-// Health Check
-app.get('/health', (req, res) => {
+// Health Checks: /, /health, /api/health
+app.get(['/', '/health', '/api/health'], (req, res) => {
   res.json({
     status: 'ONLINE',
     service: 'RESQ Emergency Flood Notification Server',
