@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import type { LocationData, CitizenReport, IoTSensor } from '../types';
 import { MUNICIPAL_ROADS, type MunicipalRoad } from '../data/municipalRoads';
 import { useTranslation } from '../services/LanguageContext';
-import { DisasterMap } from './Map/DisasterMap';
+import { MumbaiStreetWaterloggingMap } from './Map/MumbaiStreetWaterloggingMap';
 import { InverseHydraulicDiagnosisCard } from './InverseHydraulicDiagnosisCard';
 import {
   Camera,
@@ -113,111 +113,15 @@ export const StreetWaterloggingPage: React.FC<StreetWaterloggingPageProps> = ({
 
 
 
-      {/* 2. LARGE STREET-LEVEL MAP */}
-
+      {/* 2. LARGE STREET-LEVEL MAP (MUMBAI REGION FOCUSED) */}
       <section className="space-y-3">
-        <div className="bg-white p-4 sm:p-5 rounded-3xl border border-slate-200 shadow-xs flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-2">
-              <h3 className="text-base font-black text-slate-900 font-mono">
-                {t.streetWaterloggingMonitorTitle}
-              </h3>
-              <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-full ${
-                waterloggingViewMode === 'predicted'
-                  ? 'bg-amber-100 text-amber-900 border border-amber-300'
-                  : 'bg-blue-100 text-blue-900 border border-blue-300'
-              }`}>
-                {waterloggingViewMode === 'predicted' ? t.spreadSimulationTitle : t.liveDataActive}
-              </span>
-            </div>
-            <p className="text-xs text-slate-500 mt-0.5">
-              {t.streetWaterloggingMonitorDesc}
-            </p>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-3">
-            {/* View Mode Toggle Button */}
-            <div className="flex items-center bg-slate-100 p-1 rounded-2xl border border-slate-200">
-              <button
-                type="button"
-                onClick={() => setWaterloggingViewMode('realtime')}
-                className={`px-3 py-1.5 rounded-xl text-xs font-black transition flex items-center gap-1.5 cursor-pointer ${
-                  waterloggingViewMode === 'realtime'
-                    ? 'bg-white text-blue-700 shadow-xs border border-slate-200'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                <span>📡 {t.liveDataBtn}</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setWaterloggingViewMode('predicted')}
-                className={`px-3 py-1.5 rounded-xl text-xs font-black transition flex items-center gap-1.5 cursor-pointer ${
-                  waterloggingViewMode === 'predicted'
-                    ? 'bg-amber-500 text-slate-950 shadow-xs font-bold'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                <span>🔮 {t.spreadSimulationTitle}</span>
-              </button>
-            </div>
-
-            {/* Ward Selector */}
-            <div className="flex items-center gap-1.5">
-              <span className="text-xs text-slate-600 font-bold">Inspect Ward:</span>
-              <select
-                value={activeWard.id}
-                onChange={(e) => {
-                  const found = wards.find(w => w.id === e.target.value);
-                  if (found) onSelectLocation(found);
-                }}
-                className="bg-slate-100 border border-slate-300 rounded-xl px-2.5 py-1 text-xs font-bold text-slate-800 cursor-pointer focus:ring-2 focus:ring-amber-500"
-              >
-                {wards.map(w => (
-                  <option key={w.id} value={w.id}>
-                    {w.name} ({w.risk_level || 'EVALUATING'})
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Filter */}
-            <div className="flex items-center gap-1.5">
-              <span className="text-xs text-slate-500 font-bold">Filter Roads:</span>
-              <select
-                value={filterStatus}
-                onChange={(e) => setFilterStatus(e.target.value)}
-                className="bg-slate-100 border border-slate-300 rounded-xl px-2.5 py-1 text-xs font-bold text-slate-800 cursor-pointer"
-              >
-                <option value="ALL">{t.roadStatusFilterAll} ({roads.length})</option>
-                <option value="SEVERE">🔴 {t.roadStatusFilterCritical}</option>
-                <option value="MODERATE">🟠 {t.roadStatusFilterHigh}</option>
-                <option value="MINOR">🟡 {t.roadStatusFilterModerate}</option>
-                <option value="CLEAR">🟢 {t.roadStatusFilterClear}</option>
-              </select>
-            </div>
-          </div>
-        </div>
-
-        {/* Map Locked to Street Waterlogging Mode */}
-        <DisasterMap
-          locations={locations}
-          selectedLocation={activeWard}
-          onSelectLocation={onSelectLocation}
-          riverNetworks={[]}
-          drainageLines={drainageLines}
-          sensors={[]}
-          citizenReports={allReports}
-          historicalEvents={[]}
-          hospitals={[]}
-          isDemoMode={isDemoMode}
-          systemMode="street-waterlogging"
-          selectedRoad={selectedRoad}
-          onSelectRoad={(road) => setSelectedRoad(road)}
-          waterloggingViewMode={waterloggingViewMode}
-          onToggleWaterloggingViewMode={setWaterloggingViewMode}
-          activeLayers={activeLayers}
-          onToggleLayer={handleToggleLayer}
+        <MumbaiStreetWaterloggingMap
+          selectedRoadName={selectedRoad?.name}
+          onSelectRoad={(road) => {
+            const matched = roads.find(r => r.name.toLowerCase().includes(road.road_name.toLowerCase()) || road.road_name.toLowerCase().includes(r.name.toLowerCase()));
+            if (matched) setSelectedRoad(matched);
+          }}
+          onOpenReportModal={onOpenReportModal}
         />
       </section>
 

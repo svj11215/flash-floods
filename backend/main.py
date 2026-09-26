@@ -755,13 +755,21 @@ def get_drainage_diagnosis(
     except Exception as e:
         raise HTTPException(status_code=404, detail=str(e))
 
+@app.get("/api/drainage/mumbai-weather")
+def get_mumbai_live_weather():
+    """
+    Returns authentic live weather observations for Mumbai from Open-Meteo API.
+    """
+    return drainage_service.get_mumbai_live_weather()
+
 @app.get("/api/drainage/mumbai-roads")
 def get_mumbai_drainage_roads(
-    rainfall: float = Query(default=24.0, description="Rainfall intensity in mm/hr for dynamic risk assessment")
+    rainfall: Optional[float] = Query(default=None, description="Rainfall intensity in mm/hr for dynamic risk assessment (if omitted, uses live Open-Meteo rainfall)"),
+    use_live_rain: bool = Query(default=False, description="Explicitly use live rainfall from Open-Meteo")
 ):
     """
     Returns authentic geocoded Mumbai roads with drainage segments and dynamic waterlogging risk.
     """
-    return drainage_service.get_mumbai_geocoded_roads(rainfall_mm=rainfall)
+    return drainage_service.get_mumbai_geocoded_roads(rainfall_mm=rainfall, use_live_rain=use_live_rain)
 
 

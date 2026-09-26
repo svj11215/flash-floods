@@ -29,6 +29,7 @@ interface NavbarProps {
   isRefreshing?: boolean;
   onRefresh: () => void;
   onOpenReportModal: () => void;
+  onOpenAlertRegistration?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -43,7 +44,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   lastObservedTime,
   isRefreshing = false,
   onRefresh,
-  onOpenReportModal
+  onOpenReportModal,
+  onOpenAlertRegistration
 }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { language, setLanguage, t } = useTranslation();
@@ -233,8 +235,19 @@ export const Navbar: React.FC<NavbarProps> = ({
           })}
         </nav>
 
-        {/* Dedicated Authority Access Button */}
+        {/* Dedicated Authority Access Button & Emergency Alert Registration */}
         <div className="hidden sm:flex items-center gap-2 shrink-0">
+          {onOpenAlertRegistration && (
+            <button
+              onClick={onOpenAlertRegistration}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold transition shadow-xs cursor-pointer font-mono"
+              title="Register for RESQ Emergency Flash Flood Alerts"
+            >
+              <Bell className="w-3.5 h-3.5 animate-pulse" />
+              <span>🚨 Alert Registration</span>
+            </button>
+          )}
+
           <button
             onClick={() => setCurrentTab('response-center')}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition border cursor-pointer ${
@@ -251,6 +264,15 @@ export const Navbar: React.FC<NavbarProps> = ({
 
         {/* Mobile Hamburger Toggle & Quick Report */}
         <div className="flex items-center gap-2 lg:hidden">
+          {onOpenAlertRegistration && (
+            <button
+              onClick={onOpenAlertRegistration}
+              className="p-1.5 bg-red-600 text-white rounded-lg shadow-xs cursor-pointer"
+              title="Register for Emergency Alerts"
+            >
+              <Bell className="w-4 h-4 animate-pulse" />
+            </button>
+          )}
           <button
             onClick={onOpenReportModal}
             className="flex items-center gap-1 px-2.5 py-1.5 bg-red-600 text-white text-xs font-bold rounded-lg shadow-xs cursor-pointer"
@@ -271,6 +293,18 @@ export const Navbar: React.FC<NavbarProps> = ({
       {/* Mobile Navigation Dropdown (Section 13 Strict Requirements) */}
       {mobileMenuOpen && (
         <div className="lg:hidden border-t border-slate-200 bg-white px-4 py-4 space-y-3 shadow-lg">
+          {onOpenAlertRegistration && (
+            <button
+              onClick={() => {
+                onOpenAlertRegistration();
+                setMobileMenuOpen(false);
+              }}
+              className="w-full py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold font-mono transition flex items-center justify-center gap-2 shadow-xs cursor-pointer"
+            >
+              <Bell className="w-4 h-4 animate-pulse" />
+              <span>🚨 REGISTER FOR EMERGENCY ALERTS</span>
+            </button>
+          )}
           {/* Two Large Stacked Cards for Mobile */}
           <div className="space-y-2.5 pb-3 border-b border-slate-100">
             <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest font-mono">

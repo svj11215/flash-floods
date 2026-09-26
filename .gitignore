@@ -1,6 +1,7 @@
 # Dependencies
 node_modules/
 frontend/node_modules/
+backend-node/node_modules/
 .venv/
 env/
 venv/
@@ -8,6 +9,14 @@ venv/
 # Build artifacts
 frontend/dist/
 dist/
+
+# Secrets and environment files
+.env
+*.env
+.env.local
+.env.*.local
+serviceAccountKey.json
+*serviceAccountKey*.json
 
 # Python
 __pycache__/
@@ -25,4 +34,5 @@ Thumbs.db
 .vscode/
 .idea/
 scratch*
+
 

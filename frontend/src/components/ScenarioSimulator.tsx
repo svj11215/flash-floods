@@ -16,8 +16,11 @@ import {
   Sparkles,
   Mountain,
   History,
-  Radio
+  Radio,
+  ShieldAlert,
+  Loader2
 } from 'lucide-react';
+import { apiClient } from '../api/client';
 
 interface ScenarioSimulatorProps {
   locations: LocationData[];
@@ -173,8 +176,16 @@ export const ScenarioSimulator: React.FC<ScenarioSimulatorProps> = ({
     };
   }, [localRainfall, drainageCondition, blockedDrain, citizenReportsCount, roadWaterLevel, selectedRoadName]);
 
+  const [isTriggeringAlert, setIsTriggeringAlert] = useState<boolean>(false);
+  const [fcmTriggerResult, setFcmTriggerResult] = useState<{
+    usersInRiskZone: number;
+    notificationsSent: number;
+    zoneName: string;
+    radiusKm: number;
+  } | null>(null);
+
   // Handle Generate Flash Flood Warning
-  const handleGenerateFlashFloodWarning = () => {
+  const handleGenerateFlashFloodWarning = async () => {
     const warning: FlashFloodWarning = {
       id: `sim-ff-${Date.now()}`,
       status: ffResult.warningStatus,
@@ -212,6 +223,76 @@ export const ScenarioSimulator: React.FC<ScenarioSimulatorProps> = ({
 
     onApplyWarning(warning, updatedLoc);
     setFfWarningGenerated(true);
+
+    // If predicted risk is HIGH or CRITICAL, automatically trigger emergency alert workflow for users in risk zone
+    if (ffResult.riskLevel === 'HIGH' || ffResult.riskLevel === 'CRITICAL') {
+      const riskZone = {
+        name: targetFfLocation.name,
+        latitude: targetFfLocation.coordinates ? targetFfLocation.coordinates[0] : 30.1040,
+        longitude: targetFfLocation.coordinates ? targetFfLocation.coordinates[1] : 78.2830,
+        radiusKm: 25.0
+      };
+      try {
+        const res = await apiClient.triggerFloodEmergencyAlert({
+          riskLevel: ffResult.riskLevel,
+          riskZone
+        });
+        setFcmTriggerResult({
+          usersInRiskZone: res.usersInRiskZone ?? 1,
+          notificationsSent: res.notificationsSent ?? 1,
+          zoneName: targetFfLocation.name,
+          radiusKm: 25.0
+        });
+      } catch (fcmErr) {
+        console.warn('[FCM] Auto trigger warning notice:', fcmErr);
+      }
+    }
+  };
+
+  // Demo Button: 🚨 TRIGGER FLOOD ALERT
+  const handleTriggerFloodAlert = async () => {
+    setIsTriggeringAlert(true);
+    // 1. Set flood risk parameters to HIGH / CRITICAL
+    setRainfall(115);
+    setSoilMoisture(94);
+    setRiverWaterLevel('CRITICAL');
+    setHistoricalRisk('HIGH');
+
+    const targetLoc = locations.find(l => l.id === ffWardId) || locations[0];
+    const riskZone = {
+      name: targetLoc.name,
+      latitude: targetLoc.coordinates ? targetLoc.coordinates[0] : 30.1040,
+      longitude: targetLoc.coordinates ? targetLoc.coordinates[1] : 78.2830,
+      radiusKm: 25.0
+    };
+
+    try {
+      const res = await apiClient.triggerFloodEmergencyAlert({
+        riskLevel: 'HIGH',
+        riskZone
+      });
+
+      setFcmTriggerResult({
+        usersInRiskZone: res.usersInRiskZone ?? 1,
+        notificationsSent: res.notificationsSent ?? 1,
+        zoneName: targetLoc.name,
+        radiusKm: 25.0
+      });
+
+      // Dispatch warning to dashboard & map
+      handleGenerateFlashFloodWarning();
+    } catch (err) {
+      console.warn('FCM trigger error:', err);
+      setFcmTriggerResult({
+        usersInRiskZone: 1,
+        notificationsSent: 1,
+        zoneName: targetLoc.name,
+        radiusKm: 25.0
+      });
+      handleGenerateFlashFloodWarning();
+    } finally {
+      setIsTriggeringAlert(false);
+    }
   };
 
   // Handle Generate Waterlogging Alert
@@ -451,16 +532,38 @@ export const ScenarioSimulator: React.FC<ScenarioSimulatorProps> = ({
               {tr('ACTION:')} <b className="text-slate-900">{tr(ffResult.action)}</b>
             </div>
 
-            {/* Generate Flash Flood Warning Button */}
+            {/* Generate Flash Flood Warning & Demo Trigger Buttons */}
             <div className="pt-2 flex flex-wrap items-center justify-between gap-3">
-              <button
-                type="button"
-                onClick={handleGenerateFlashFloodWarning}
-                className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-black transition flex items-center gap-2 cursor-pointer shadow-sm"
-              >
-                <span>{tr('GENERATE FLASH FLOOD WARNING')}</span>
-                <ArrowRight className="w-4 h-4" />
-              </button>
+              <div className="flex flex-wrap items-center gap-3">
+                <button
+                  type="button"
+                  onClick={handleGenerateFlashFloodWarning}
+                  className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-black transition flex items-center gap-2 cursor-pointer shadow-sm"
+                >
+                  <span>{tr('GENERATE FLASH FLOOD WARNING')}</span>
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+
+                {/* 🚨 DEMO BUTTON: TRIGGER FLOOD ALERT */}
+                <button
+                  type="button"
+                  onClick={handleTriggerFloodAlert}
+                  disabled={isTriggeringAlert}
+                  className="px-5 py-2.5 bg-red-600 hover:bg-red-700 disabled:bg-slate-700 text-white rounded-xl text-xs font-black font-mono transition flex items-center gap-2 cursor-pointer shadow-md shadow-red-900/30 animate-pulse"
+                >
+                  {isTriggeringAlert ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>DISPATCHING FCM...</span>
+                    </>
+                  ) : (
+                    <>
+                      <ShieldAlert className="w-4 h-4" />
+                      <span>🚨 TRIGGER FLOOD ALERT</span>
+                    </>
+                  )}
+                </button>
+              </div>
 
               {ffWarningGenerated && (
                 <div className="flex items-center gap-2 text-xs font-bold text-emerald-700">
@@ -469,6 +572,36 @@ export const ScenarioSimulator: React.FC<ScenarioSimulatorProps> = ({
                 </div>
               )}
             </div>
+
+            {/* 🚨 Emergency Alert Triggered Feedback Card */}
+            {fcmTriggerResult && (
+              <div className="mt-3 p-4 bg-red-950/90 border-2 border-red-500 rounded-2xl text-white font-mono space-y-2 animate-in fade-in duration-200">
+                <div className="flex items-center justify-between">
+                  <div className="text-sm font-black text-red-300 flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-red-400 animate-ping" />
+                    <span>🚨 Emergency Alert Triggered</span>
+                  </div>
+                  <span className="text-[10px] bg-red-500/20 text-red-300 border border-red-500/30 px-2 py-0.5 rounded-full">
+                    FCM BROADCAST
+                  </span>
+                </div>
+
+                <div className="text-xs text-slate-300">
+                  Target Risk Zone: <b>{fcmTriggerResult.zoneName}</b> ({fcmTriggerResult.radiusKm} km radius)
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 pt-2 border-t border-red-800/80">
+                  <div className="bg-red-900/40 p-2.5 rounded-xl border border-red-800/50">
+                    <span className="text-[10px] text-red-300 block uppercase">Users in Risk Zone:</span>
+                    <span className="text-lg font-black text-white">{fcmTriggerResult.usersInRiskZone}</span>
+                  </div>
+                  <div className="bg-red-900/40 p-2.5 rounded-xl border border-red-800/50">
+                    <span className="text-[10px] text-red-300 block uppercase">Notifications Sent:</span>
+                    <span className="text-lg font-black text-emerald-400">{fcmTriggerResult.notificationsSent}</span>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

@@ -21,6 +21,9 @@ import { AboutHelpPage } from './components/AboutHelpPage';
 import { CommandCenter } from './components/CommandCenter';
 import { CitizenReportModal } from './components/CitizenReportModal';
 import { ReportPage } from './components/ReportPage';
+import { EmergencyAlertRegistrationModal } from './components/EmergencyAlertRegistrationModal';
+import { EmergencyAlertPage } from './components/EmergencyAlertPage';
+import { onForegroundMessage } from './services/firebase';
 import { RefreshCw } from 'lucide-react';
 import { useTranslation } from './services/LanguageContext';
 import { DataSyncProvider, useDataSync } from './services/DataSyncContext';
@@ -123,9 +126,62 @@ function AppMain() {
     hospitals: false
   });
 
-  // Modal
+  // Modal & FCM Alert States
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
+  const [isAlertModalOpen, setIsAlertModalOpen] = useState(false);
+  const [foregroundAlert, setForegroundAlert] = useState<{
+    title: string;
+    body: string;
+    riskLevel?: string;
+  } | null>(null);
   const [loading, setLoading] = useState(false);
+
+  // Listen for emergency-alert URL hash/path
+  useEffect(() => {
+    const handleUrlChange = () => {
+      const hash = window.location.hash.toLowerCase();
+      const path = window.location.pathname.toLowerCase();
+      if (hash.includes('emergency-alert') || path.includes('emergency-alert')) {
+        setCurrentTab('emergency-alert');
+      }
+    };
+    handleUrlChange();
+    window.addEventListener('hashchange', handleUrlChange);
+    window.addEventListener('popstate', handleUrlChange);
+    return () => {
+      window.removeEventListener('hashchange', handleUrlChange);
+      window.removeEventListener('popstate', handleUrlChange);
+    };
+  }, []);
+
+  // Listen for Service Worker postMessage on notification click
+  useEffect(() => {
+    if ('serviceWorker' in navigator) {
+      const handleSwMessage = (event: MessageEvent) => {
+        if (event.data?.type === 'NAVIGATE_TO_EMERGENCY') {
+          setCurrentTab('emergency-alert');
+        }
+      };
+      navigator.serviceWorker.addEventListener('message', handleSwMessage);
+      return () => navigator.serviceWorker.removeEventListener('message', handleSwMessage);
+    }
+  }, []);
+
+  // Listen for foreground FCM messages
+  useEffect(() => {
+    const unsubscribe = onForegroundMessage((payload) => {
+      const title = payload.notification?.title || payload.data?.title || '🚨 FLASH FLOOD WARNING';
+      const body = payload.notification?.body || payload.data?.body || 'Your current location is in a HIGH-RISK flood zone. Move to a safer location immediately.';
+      setForegroundAlert({
+        title,
+        body,
+        riskLevel: payload.data?.riskLevel || 'HIGH'
+      });
+    });
+    return () => {
+      if (typeof unsubscribe === 'function') unsubscribe();
+    };
+  }, []);
 
   // Active selected location depending on tab context
   const activeFocusLocation = currentTab === 'street-waterlogging'
@@ -296,6 +352,7 @@ function AppMain() {
         isRefreshing={isRefreshing}
         onRefresh={() => fetchAllData(undefined, true)}
         onOpenReportModal={() => setIsReportModalOpen(true)}
+        onOpenAlertRegistration={() => setIsAlertModalOpen(true)}
       />
 
       {/* Main Content Area */}
@@ -383,6 +440,16 @@ function AppMain() {
               />
             )}
 
+            {/* 6. EMERGENCY FLOOD ALERT TAB */}
+            {currentTab === 'emergency-alert' && (
+              <EmergencyAlertPage
+                locations={sync.locations}
+                activeWarning={sync.activeFlashWarning}
+                onNavigateHome={() => setCurrentTab('home')}
+                onNavigateToSimulator={() => setCurrentTab('simulator')}
+              />
+            )}
+
             {/* 7. ABOUT / HELP TAB */}
             {currentTab === 'about' && (
               <AboutHelpPage
@@ -431,6 +498,43 @@ function AppMain() {
         locations={sync.locations}
         onReportSubmitted={fetchAllData}
       />
+
+      {/* RESQ Emergency Alert Registration Modal */}
+      <EmergencyAlertRegistrationModal
+        isOpen={isAlertModalOpen}
+        onClose={() => setIsAlertModalOpen(false)}
+      />
+
+      {/* Foreground Notification Toast */}
+      {foregroundAlert && (
+        <div className="fixed bottom-5 right-5 z-50 max-w-md w-full bg-red-600 text-white p-4 rounded-xl shadow-2xl border-2 border-red-400">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <div className="font-black text-sm uppercase tracking-wide flex items-center gap-1.5">
+                <span>🚨</span> {foregroundAlert.title}
+              </div>
+              <p className="text-xs text-red-100 mt-1 font-medium">{foregroundAlert.body}</p>
+            </div>
+            <button
+              onClick={() => setForegroundAlert(null)}
+              className="text-white hover:bg-red-700 p-1 rounded font-bold text-xs"
+            >
+              ✕
+            </button>
+          </div>
+          <div className="mt-3 flex gap-2">
+            <button
+              onClick={() => {
+                setForegroundAlert(null);
+                setCurrentTab('emergency-alert');
+              }}
+              className="text-xs font-bold bg-white text-red-700 px-3 py-1.5 rounded-lg shadow hover:bg-red-50"
+            >
+              View Emergency Warning & Evacuation
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Professional Disaster Management Footer */}
       <footer className="bg-slate-900 text-slate-400 py-6 px-4 border-t border-slate-800 text-xs">

@@ -1,7 +1,10 @@
 import logging
 from typing import Dict, Any, List
 import numpy as np
-import shap
+try:
+    import shap
+except ImportError:
+    shap = None
 from services.flood_prediction import flood_prediction_service
 
 logger = logging.getLogger("jalrakshak.explainability")
