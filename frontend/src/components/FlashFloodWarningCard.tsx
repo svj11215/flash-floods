@@ -64,44 +64,82 @@ export const FlashFloodWarningCard: React.FC<FlashFloodWarningCardProps> = ({
     );
   }
 
-  // Visual styles for WATCH, WARNING, CRITICAL
-  const getStatusVisuals = (status: string) => {
-    switch (status) {
-      case 'WATCH':
-        return {
-          bannerBg: 'bg-amber-500',
-          badgeText: 'text-amber-950',
-          badgeBg: 'bg-amber-100 border-amber-300',
-          border: 'border-amber-400',
-          icon: '🟡',
-          headline: 'FLOOD WATCH',
-          tagline: 'Conditions are becoming unfavorable. Continue monitoring.'
-        };
-      case 'WARNING':
-        return {
-          bannerBg: 'bg-orange-500',
-          badgeText: 'text-orange-950',
-          badgeBg: 'bg-orange-100 border-orange-300',
-          border: 'border-orange-500',
-          icon: '🟠',
-          headline: 'FLOOD WARNING',
-          tagline: 'Flooding may occur in vulnerable areas. Prepare to move away from affected locations.'
-        };
-      case 'CRITICAL':
-      default:
-        return {
-          bannerBg: 'bg-red-600',
-          badgeText: 'text-red-950',
-          badgeBg: 'bg-red-100 border-red-300',
-          border: 'border-red-500',
-          icon: '🔴',
-          headline: 'FLASH FLOOD WARNING',
-          tagline: 'Immediate action may be required. Avoid affected roads and move to safer areas.'
-        };
+  // Visual styles for LOW, WATCH/MODERATE, WARNING/HIGH, CRITICAL
+  const getStatusVisuals = (status: string, riskLevel?: string) => {
+    const effective = (riskLevel || status || '').toUpperCase();
+    if (effective === 'LOW' || effective === 'SAFE' || effective === 'NORMAL' || status === 'NONE') {
+      return {
+        bannerBg: 'bg-emerald-600',
+        badgeText: 'text-emerald-950',
+        badgeBg: 'bg-emerald-100 border-emerald-300',
+        border: 'border-emerald-500',
+        icon: '🟢',
+        headerIcon: '🛡️',
+        headline: warning?.statusLabel || 'NORMAL MONITORING / LOW RISK',
+        tagline: 'Conditions are safe and stable. River stage and precipitation within safe thresholds.',
+        pillBg: 'bg-emerald-600 text-white',
+        dotColor: 'bg-emerald-500',
+        badgeLabel: 'ROUTINE ADVISORY',
+        actionBoxBg: 'bg-emerald-50/80 border-emerald-200 text-emerald-950',
+        actionTitleColor: 'text-emerald-900',
+        actionIconColor: 'text-emerald-700'
+      };
     }
+    if (effective === 'WATCH' || effective === 'MODERATE') {
+      return {
+        bannerBg: 'bg-amber-500',
+        badgeText: 'text-amber-950',
+        badgeBg: 'bg-amber-100 border-amber-300',
+        border: 'border-amber-400',
+        icon: '🟡',
+        headerIcon: '⚠️',
+        headline: warning?.statusLabel || 'FLOOD WATCH',
+        tagline: 'Conditions are becoming unfavorable. Water levels rising in feeder streams. Continue monitoring.',
+        pillBg: 'bg-amber-500 text-slate-950',
+        dotColor: 'bg-amber-500',
+        badgeLabel: 'WATCH ACTIVE',
+        actionBoxBg: 'bg-amber-50/90 border-amber-200 text-amber-950',
+        actionTitleColor: 'text-amber-900',
+        actionIconColor: 'text-amber-700'
+      };
+    }
+    if (effective === 'WARNING' || effective === 'HIGH') {
+      return {
+        bannerBg: 'bg-orange-500',
+        badgeText: 'text-orange-950',
+        badgeBg: 'bg-orange-100 border-orange-300',
+        border: 'border-orange-500',
+        icon: '🟠',
+        headerIcon: '🚨',
+        headline: warning?.statusLabel || 'FLOOD WARNING',
+        tagline: 'Flooding may occur in vulnerable riparian areas. Prepare to move away from affected locations.',
+        pillBg: 'bg-orange-600 text-white',
+        dotColor: 'bg-orange-500',
+        badgeLabel: 'ACTIVE WARNING',
+        actionBoxBg: 'bg-orange-50/90 border-orange-200 text-orange-950',
+        actionTitleColor: 'text-orange-900',
+        actionIconColor: 'text-orange-700'
+      };
+    }
+    return {
+      bannerBg: 'bg-red-600',
+      badgeText: 'text-red-950',
+      badgeBg: 'bg-red-100 border-red-300',
+      border: 'border-red-500',
+      icon: '🔴',
+      headerIcon: '🚨',
+      headline: warning?.statusLabel || 'FLASH FLOOD WARNING',
+      tagline: 'Immediate action may be required. Avoid affected roads and move to safer areas.',
+      pillBg: 'bg-red-600 text-white',
+      dotColor: 'bg-red-600',
+      badgeLabel: 'CRITICAL ALERT',
+      actionBoxBg: 'bg-amber-50/90 border-amber-200 text-amber-950',
+      actionTitleColor: 'text-amber-900',
+      actionIconColor: 'text-amber-700'
+    };
   };
 
-  const statusStyle = getStatusVisuals(warning.status);
+  const statusStyle = getStatusVisuals(warning.status, warning.riskLevel);
 
   return (
     <div className={`bg-white rounded-3xl border-3 ${statusStyle.border} shadow-lg overflow-hidden`}>
@@ -109,7 +147,7 @@ export const FlashFloodWarningCard: React.FC<FlashFloodWarningCardProps> = ({
       <div className={`${statusStyle.bannerBg} text-white px-5 sm:px-8 py-4 flex flex-wrap items-center justify-between gap-3`}>
         <div className="flex items-center gap-3">
           <span className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center text-xl shrink-0 animate-pulse">
-            🚨
+            {statusStyle.headerIcon}
           </span>
           <div>
             <div className="flex items-center gap-2">
@@ -117,7 +155,7 @@ export const FlashFloodWarningCard: React.FC<FlashFloodWarningCardProps> = ({
                 {tr(statusStyle.headline)}
               </h2>
               <span className="px-2 py-0.5 rounded text-[11px] font-black uppercase tracking-wider bg-white text-slate-950">
-                {t.activeWarningBadge}
+                {tr(statusStyle.badgeLabel)}
               </span>
             </div>
             <p className="text-xs sm:text-sm text-white/90 font-medium">
@@ -181,7 +219,7 @@ export const FlashFloodWarningCard: React.FC<FlashFloodWarningCardProps> = ({
 
           <div className="flex items-center gap-2">
             <span className="text-xs font-bold text-slate-500">Risk:</span>
-            <span className="px-3 py-1 rounded-xl bg-red-600 text-white font-black text-xs uppercase tracking-wider font-mono flex items-center gap-1.5 shadow-xs">
+            <span className={`px-3 py-1 rounded-xl ${statusStyle.pillBg} font-black text-xs uppercase tracking-wider font-mono flex items-center gap-1.5 shadow-xs`}>
               <span>{statusStyle.icon}</span>
               <span>{tr(warning.riskLevel)}</span>
             </span>
@@ -207,7 +245,7 @@ export const FlashFloodWarningCard: React.FC<FlashFloodWarningCardProps> = ({
               <div className="space-y-1">
                 {warning.affectedAreas.map((area, idx) => (
                   <div key={idx} className="flex items-center gap-2 text-xs sm:text-sm font-semibold text-slate-800">
-                    <span className="w-2 h-2 rounded-full bg-red-600" />
+                    <span className={`w-2 h-2 rounded-full ${statusStyle.dotColor}`} />
                     <span>{tr(area)}</span>
                   </div>
                 ))}
@@ -227,7 +265,7 @@ export const FlashFloodWarningCard: React.FC<FlashFloodWarningCardProps> = ({
                 warning.timeline.map((step, idx) => (
                   <div key={idx} className="relative">
                     <span className={`absolute -left-[27px] top-1 w-3 h-3 rounded-full border-2 border-white ${
-                      step.isTriggered ? 'bg-red-600 ring-2 ring-red-300 animate-pulse' : 'bg-slate-400'
+                      step.isTriggered ? `${statusStyle.dotColor} ring-2 ring-slate-300 animate-pulse` : 'bg-slate-400'
                     }`} />
                     <div className="font-bold text-slate-900">{tr(step.label)}</div>
                     <div className="text-[11px] text-slate-500">{tr(step.subtext)}</div>
@@ -239,16 +277,16 @@ export const FlashFloodWarningCard: React.FC<FlashFloodWarningCardProps> = ({
         </div>
 
         {/* What You Should Do */}
-        <div className="bg-amber-50/90 rounded-2xl p-5 border border-amber-200">
-          <span className="text-xs font-black uppercase tracking-wider text-amber-900 block mb-2.5 flex items-center gap-1.5">
-            <ShieldAlert className="w-4 h-4 text-amber-700" />
+        <div className={`rounded-2xl p-5 border ${statusStyle.actionBoxBg}`}>
+          <span className={`text-xs font-black uppercase tracking-wider ${statusStyle.actionTitleColor} block mb-2.5 flex items-center gap-1.5`}>
+            <ShieldAlert className={`w-4 h-4 ${statusStyle.actionIconColor}`} />
             <span>{t.whatYouShouldDoNow}</span>
           </span>
 
-          <div className="grid sm:grid-cols-2 gap-2 text-xs sm:text-sm font-bold text-amber-950">
+          <div className="grid sm:grid-cols-2 gap-2 text-xs sm:text-sm font-bold">
             {warning.actions.map((act, idx) => (
               <div key={idx} className="flex items-start gap-2">
-                <span className="text-red-600 font-black">•</span>
+                <span className={`${statusStyle.actionIconColor} font-black`}>•</span>
                 <span>{tr(act)}</span>
               </div>
             ))}

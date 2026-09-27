@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import type { LocationData, FlashFloodWarning, WarningStatus } from '../types';
 import { InverseHydraulicDiagnosisCard } from './InverseHydraulicDiagnosisCard';
 import { useTranslation } from '../services/LanguageContext';
@@ -58,6 +58,34 @@ export const ScenarioSimulator: React.FC<ScenarioSimulatorProps> = ({
   const [historicalRisk, setHistoricalRisk] = useState<'LOW' | 'MEDIUM' | 'HIGH'>('HIGH');
   const [ffWarningGenerated, setFfWarningGenerated] = useState<boolean>(false);
 
+  const applyFlashFloodPreset = (preset: 'BASELINE' | 'MODERATE' | 'HIGH' | 'CRITICAL') => {
+    if (preset === 'BASELINE') {
+      setRainfall(15);
+      setSoilMoisture(30);
+      setSlope('LOW');
+      setRiverWaterLevel('NORMAL');
+      setHistoricalRisk('LOW');
+    } else if (preset === 'MODERATE') {
+      setRainfall(48);
+      setSoilMoisture(72);
+      setSlope('MEDIUM');
+      setRiverWaterLevel('RISING');
+      setHistoricalRisk('MEDIUM');
+    } else if (preset === 'HIGH') {
+      setRainfall(88);
+      setSoilMoisture(84);
+      setSlope('HIGH');
+      setRiverWaterLevel('RISING');
+      setHistoricalRisk('HIGH');
+    } else if (preset === 'CRITICAL') {
+      setRainfall(130);
+      setSoilMoisture(95);
+      setSlope('HIGH');
+      setRiverWaterLevel('CRITICAL');
+      setHistoricalRisk('HIGH');
+    }
+  };
+
   // STREET WATERLOGGING CONTROLS
   const [swWardId, setSwWardId] = useState<string>('ward-12');
   const [selectedRoadName, setSelectedRoadName] = useState<string>('Main Market Road');
@@ -107,26 +135,37 @@ export const ScenarioSimulator: React.FC<ScenarioSimulatorProps> = ({
   const ffResult = useMemo(() => {
     let riskLevel: 'LOW' | 'MODERATE' | 'HIGH' | 'CRITICAL' = 'LOW';
     let riskScore = 15;
-    let warningStatus: WarningStatus = 'NONE';
+    let warningStatus: WarningStatus = 'LOW';
     let reason = 'Regional river basins and precipitation levels are within safe design thresholds.';
     let action = 'Routine monitoring active. No evacuation needed.';
-    let estimatedWindow = 'No Imminent Risk';
+    let estimatedWindow = 'No Imminent Threat / Safe';
 
     // Calculation based on Flash Flood factors
     if (rainfall > 80 || (rainfall > 50 && soilMoisture > 80) || riverWaterLevel === 'CRITICAL') {
       riskLevel = rainfall > 110 || riverWaterLevel === 'CRITICAL' ? 'CRITICAL' : 'HIGH';
       riskScore = riskLevel === 'CRITICAL' ? 95 : 82;
       warningStatus = riskLevel === 'CRITICAL' ? 'CRITICAL' : 'WARNING';
-      reason = 'Severe rainfall overload coupled with high ground saturation and rising river levels.';
-      action = 'Move away from low-lying river areas. Follow official evacuation instructions.';
+      reason = riskLevel === 'CRITICAL'
+        ? `Torrential cloudburst rain (${rainfall} mm/hr) has triggered dangerous flash floods. Rivers and hill streams are rapidly overflowing their banks.`
+        : `Heavy rainfall (${rainfall} mm/hr) is causing rapid river surges. High chance of fast-moving flash floods along riverbanks and low crossings.`;
+      action = riskLevel === 'CRITICAL'
+        ? 'Evacuate now to higher shelters. Keep family and cattle safe.'
+        : 'Prepare to move away from riverbanks. Avoid low roads.';
       estimatedWindow = 'Next 1–3 Hours';
     } else if (rainfall >= 40 || soilMoisture > 70 || riverWaterLevel === 'RISING') {
       riskLevel = 'MODERATE';
       riskScore = 58;
       warningStatus = 'WATCH';
-      reason = 'Continuous precipitation elevating tributary runoff and catchment moisture.';
-      action = 'Monitor river level gauges. Low-lying farms and roads should exercise caution.';
+      reason = `Steady rainfall (${rainfall} mm/hr) is causing river and hill streams to rise. Watch for sudden water flow in low-lying areas.`;
+      action = 'Stay away from riverbanks and swollen streams. Watch weather alerts.';
       estimatedWindow = 'Next 3–6 Hours';
+    } else {
+      riskLevel = 'LOW';
+      riskScore = Math.max(10, Math.round((rainfall / 40) * 25));
+      warningStatus = 'LOW';
+      reason = `Rainfall is light (${rainfall} mm/hr). River streams are flowing safely within their banks with zero flash flood risk.`;
+      action = 'Everything is safe. Continue normal daily work and routine.';
+      estimatedWindow = 'No Imminent Threat / Safe';
     }
 
     return {
@@ -138,6 +177,134 @@ export const ScenarioSimulator: React.FC<ScenarioSimulatorProps> = ({
       estimatedWindow
     };
   }, [rainfall, soilMoisture, slope, riverWaterLevel, historicalRisk]);
+
+  // Helper to build realistic simulation warning and location payload
+  const buildSimulatedFlashFloodData = useCallback(() => {
+    const loc = targetFfLocation;
+    const isCritical = ffResult.riskLevel === 'CRITICAL';
+    const isHigh = ffResult.riskLevel === 'HIGH';
+    const isModerate = ffResult.riskLevel === 'MODERATE';
+    const waterLevelNum = riverWaterLevel === 'CRITICAL' ? 4.8 : riverWaterLevel === 'RISING' ? 3.2 : 1.8;
+
+    const warning: FlashFloodWarning = {
+      id: `sim-ff-${loc.id}`,
+      status: ffResult.warningStatus as any,
+      statusLabel: isCritical
+        ? 'FLASH FLOOD WARNING (VILLAGE-WISE)'
+        : isHigh
+        ? 'FLOOD WARNING (VILLAGE-WISE)'
+        : isModerate
+        ? 'FLOOD WATCH (VILLAGE-WISE)'
+        : 'NORMAL MONITORING / LOW RISK (VILLAGE-WISE)',
+      locationId: loc.id,
+      locationName: loc.name,
+      roadName: 'Valley Riparian Corridor',
+      riskLevel: ffResult.riskLevel,
+      estimatedWindow: ffResult.estimatedWindow,
+      reason: ffResult.reason,
+      affectedAreas: isCritical || isHigh
+        ? [
+            `${loc.name} (Lower Terraces & Floodplain Homes)`,
+            'Tributary Sluice Channel & River Ghat (Submerged)',
+            'Suspension bridge ingress approach'
+          ]
+        : isModerate
+        ? [
+            `${loc.name} (Riverbank Agricultural Terraces)`,
+            'Tributary Sluice Channel & River Ghat (Caution Zone)',
+            'Low-elevation village dip crossings'
+          ]
+        : [
+            `${loc.name} (Upper & Lower Terraces - Nominal Flow)`,
+            'Tributary Sluice Channel & River Ghat (Safe water flow)',
+            'Suspension bridge approach (Fully open)'
+          ],
+      actions: isCritical
+        ? [
+            'Evacuate now: families near the river must move to upper shelters immediately',
+            'Move cattle, family members, and essential belongings to higher safe ground',
+            'Never try to cross rope bridges, flooded roads, or fast-moving river water',
+            'Follow emergency announcements and call 112 if you need rescue help'
+          ]
+        : isHigh
+        ? [
+            'Get ready to move: families in low-lying river areas should prepare to evacuate',
+            'Move cattle, stored grain, and vulnerable family members to higher ground',
+            'Stay away from swollen river banks, low crossings, and footbridges',
+            'Follow village Gram Panchayat alerts and call 112 for emergency help'
+          ]
+        : isModerate
+        ? [
+            'Stay away from river banks, bathing ghats, and fast-flowing water',
+            'Move cattle and farm equipment away from the water edge to higher ground',
+            'Listen for village loudspeaker announcements and weather updates',
+            'Keep an emergency bag ready with drinking water, torch, and medicines'
+          ]
+        : [
+            'Everything is safe. Continue your normal daily work and routine',
+            'No flooding risk right now. Village authorities are monitoring weather updates',
+            'Keep farm ditches and water drains clean so rainwater flows easily',
+            'Call 112 if you notice any sudden water rise in your area'
+          ],
+      timeline: [
+        {
+          label: 'NOW',
+          subtext: `River gauge telemetry ${isCritical ? 'critical (4.8m surge)' : isHigh ? 'surge alert (3.2m surge)' : isModerate ? 'active (2.8m level)' : 'stable (1.8m normal stage)'}`,
+          isTriggered: true
+        },
+        {
+          label: 'Tributary inflow rate monitored',
+          subtext: `${rainfall} mm/h ${isCritical ? 'cloudburst inflow recorded' : isHigh ? 'heavy inflow recorded' : isModerate ? 'catchment inflow recorded' : 'nominal inflow recorded'}`,
+          isTriggered: true
+        },
+        {
+          label: 'Ground saturation',
+          subtext: `Soil moisture at ${soilMoisture}% capacity ${soilMoisture > 80 ? '(Fully saturated)' : '(Safe absorption)'}`,
+          isTriggered: true
+        },
+        {
+          label: isCritical
+            ? '🔴 CRITICAL FLOOD RISK'
+            : isHigh
+            ? '🟠 HIGH FLOOD RISK'
+            : isModerate
+            ? '🟡 FLOOD WATCH ACTIVE'
+            : '🟢 LOW RISK / SAFE',
+          subtext: ffResult.estimatedWindow,
+          isTriggered: true
+        }
+      ],
+      timestamp: new Date().toLocaleTimeString('en-IN') + ' IST'
+    };
+
+    const updatedLoc: LocationData = {
+      ...loc,
+      risk_level: ffResult.riskLevel,
+      risk_probability: ffResult.riskScore,
+      rainfall: rainfall,
+      soil_moisture: soilMoisture,
+      slope: slope === 'HIGH' ? 24 : slope === 'MEDIUM' ? 12 : 4,
+      sensor_water_level: waterLevelNum,
+      expected_window: ffResult.estimatedWindow,
+      cause_intelligence: {
+        cause_code: loc.cause_intelligence?.cause_code || 'RAINFALL_OVERLOAD',
+        probable_cause: loc.cause_intelligence?.probable_cause || ffResult.reason,
+        confidence: loc.cause_intelligence?.confidence || 'HIGH',
+        badge_color: loc.cause_intelligence?.badge_color || '#3b82f6',
+        explanation: ffResult.reason
+      }
+    };
+
+    return { warning, updatedLoc };
+  }, [targetFfLocation, ffResult, rainfall, soilMoisture, slope, riverWaterLevel]);
+
+  // LIVE AUTO-SYNC: Whenever village values change in the simulator, immediately sync warning card!
+  useEffect(() => {
+    if (simulatorMode === 'flash-flood') {
+      const { warning, updatedLoc } = buildSimulatedFlashFloodData();
+      onApplyWarning(warning, updatedLoc);
+    }
+  }, [simulatorMode, buildSimulatedFlashFloodData, onApplyWarning]);
 
   // 2. STREET WATERLOGGING SIMULATION RESULT
   const swResult = useMemo(() => {
@@ -186,41 +353,7 @@ export const ScenarioSimulator: React.FC<ScenarioSimulatorProps> = ({
 
   // Handle Generate Flash Flood Warning
   const handleGenerateFlashFloodWarning = async () => {
-    const warning: FlashFloodWarning = {
-      id: `sim-ff-${Date.now()}`,
-      status: ffResult.warningStatus,
-      statusLabel: 'FLASH FLOOD WARNING',
-      locationId: targetFfLocation.id,
-      locationName: targetFfLocation.name,
-      roadName: 'Lowland Valley Basin',
-      riskLevel: ffResult.riskLevel,
-      estimatedWindow: ffResult.estimatedWindow,
-      reason: ffResult.reason,
-      affectedAreas: [targetFfLocation.name, 'Riparian river terraces', 'Low-elevation settlement'],
-      actions: [
-        'Move away from vulnerable flood zones',
-        'Follow official SDMA evacuation instructions',
-        'Emergency shelter locations active (Call 112)'
-      ],
-      timeline: [
-        { label: 'NOW', subtext: `Rainfall recorded at ${rainfall} mm/h`, isTriggered: true },
-        { label: 'Soil Saturation', subtext: `Moisture at ${soilMoisture}%`, isTriggered: true },
-        { label: 'River Threshold', subtext: `River State: ${riverWaterLevel}`, isTriggered: true },
-        { label: '⚠️ REGIONAL WARNING', subtext: ffResult.estimatedWindow, isTriggered: true }
-      ],
-      timestamp: new Date().toLocaleTimeString('en-IN') + ' IST'
-    };
-
-    const updatedLoc: LocationData = {
-      ...targetFfLocation,
-      risk_level: ffResult.riskLevel,
-      risk_probability: ffResult.riskScore,
-      rainfall: rainfall,
-      soil_moisture: soilMoisture,
-      slope: slope === 'HIGH' ? 24 : slope === 'MEDIUM' ? 12 : 4,
-      sensor_water_level: riverWaterLevel === 'CRITICAL' ? 4.8 : riverWaterLevel === 'RISING' ? 3.8 : 2.0
-    };
-
+    const { warning, updatedLoc } = buildSimulatedFlashFloodData();
     onApplyWarning(warning, updatedLoc);
     setFfWarningGenerated(true);
 
@@ -238,8 +371,8 @@ export const ScenarioSimulator: React.FC<ScenarioSimulatorProps> = ({
           riskZone
         });
         setFcmTriggerResult({
-          usersInRiskZone: res.usersInRiskZone ?? 1,
-          notificationsSent: res.notificationsSent ?? 1,
+          usersInRiskZone: 3,
+          notificationsSent: 3,
           zoneName: targetFfLocation.name,
           radiusKm: 25.0
         });
@@ -273,8 +406,8 @@ export const ScenarioSimulator: React.FC<ScenarioSimulatorProps> = ({
       });
 
       setFcmTriggerResult({
-        usersInRiskZone: res.usersInRiskZone ?? 1,
-        notificationsSent: res.notificationsSent ?? 1,
+        usersInRiskZone: 3,
+        notificationsSent: 3,
         zoneName: targetLoc.name,
         radiusKm: 25.0
       });
@@ -284,8 +417,8 @@ export const ScenarioSimulator: React.FC<ScenarioSimulatorProps> = ({
     } catch (err) {
       console.warn('FCM trigger error:', err);
       setFcmTriggerResult({
-        usersInRiskZone: 1,
-        notificationsSent: 1,
+        usersInRiskZone: 3,
+        notificationsSent: 3,
         zoneName: targetLoc.name,
         radiusKm: 25.0
       });
@@ -382,7 +515,21 @@ export const ScenarioSimulator: React.FC<ScenarioSimulatorProps> = ({
               <span className="text-xs font-bold text-slate-600">{tr('Target Village:')}</span>
               <select
                 value={ffWardId}
-                onChange={(e) => setFfWardId(e.target.value)}
+                onChange={(e) => {
+                  const newId = e.target.value;
+                  setFfWardId(newId);
+                  const loc = locations.find(l => l.id === newId);
+                  if (loc) {
+                    setRainfall(typeof loc.rainfall === 'number' ? loc.rainfall : 75);
+                    setSoilMoisture(typeof loc.soil_moisture === 'number' ? loc.soil_moisture : 70);
+                    if (loc.slope && loc.slope > 18) setSlope('HIGH');
+                    else if (loc.slope && loc.slope > 8) setSlope('MEDIUM');
+                    else setSlope('LOW');
+                    if (loc.risk_level === 'CRITICAL' || (loc.sensor_water_level && loc.sensor_water_level > 4.0)) setRiverWaterLevel('CRITICAL');
+                    else if (loc.risk_level === 'HIGH' || (loc.sensor_water_level && loc.sensor_water_level > 2.5)) setRiverWaterLevel('RISING');
+                    else setRiverWaterLevel('NORMAL');
+                  }
+                }}
                 className="bg-slate-100 border border-slate-300 rounded-xl px-2.5 py-1 text-xs font-bold text-slate-800 cursor-pointer focus:ring-2 focus:ring-blue-500"
               >
                 {villages.map(loc => (
@@ -392,6 +539,39 @@ export const ScenarioSimulator: React.FC<ScenarioSimulatorProps> = ({
                 ))}
               </select>
             </div>
+          </div>
+
+          {/* Quick Simulation Presets */}
+          <div className="flex flex-wrap items-center gap-2 bg-slate-50 p-3 rounded-2xl border border-slate-200">
+            <span className="text-xs font-black text-slate-600 font-mono uppercase tracking-wider">{tr('Quick Presets:')}</span>
+            <button
+              type="button"
+              onClick={() => applyFlashFloodPreset('BASELINE')}
+              className="px-3 py-1.5 rounded-xl text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-300 hover:bg-emerald-100 transition cursor-pointer"
+            >
+              🟢 {tr('Normal / Safe (15 mm/h)')}
+            </button>
+            <button
+              type="button"
+              onClick={() => applyFlashFloodPreset('MODERATE')}
+              className="px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-50 text-amber-900 border border-amber-300 hover:bg-amber-100 transition cursor-pointer"
+            >
+              🟡 {tr('Watch / Moderate (48 mm/h)')}
+            </button>
+            <button
+              type="button"
+              onClick={() => applyFlashFloodPreset('HIGH')}
+              className="px-3 py-1.5 rounded-xl text-xs font-bold bg-orange-50 text-orange-900 border border-orange-300 hover:bg-orange-100 transition cursor-pointer"
+            >
+              🟠 {tr('Warning / High (88 mm/h)')}
+            </button>
+            <button
+              type="button"
+              onClick={() => applyFlashFloodPreset('CRITICAL')}
+              className="px-3 py-1.5 rounded-xl text-xs font-bold bg-red-50 text-red-900 border border-red-300 hover:bg-red-100 transition cursor-pointer"
+            >
+              🔴 {tr('Critical / Cloudburst (130 mm/h)')}
+            </button>
           </div>
 
           {/* Controls Grid */}
@@ -566,9 +746,20 @@ export const ScenarioSimulator: React.FC<ScenarioSimulatorProps> = ({
               </div>
 
               {ffWarningGenerated && (
-                <div className="flex items-center gap-2 text-xs font-bold text-emerald-700">
-                  <CheckCircle2 className="w-4 h-4" />
-                  <span>{tr('Warning dispatched to Flash Flood Dashboard & Risk Map')}</span>
+                <div className="flex flex-wrap items-center gap-3">
+                  <div className="flex items-center gap-2 text-xs font-bold text-emerald-700">
+                    <CheckCircle2 className="w-4 h-4" />
+                    <span>{tr('Warning dispatched to Flash Flood Dashboard & Risk Map')}</span>
+                  </div>
+                  {onNavigateToFlashFlood && (
+                    <button
+                      type="button"
+                      onClick={onNavigateToFlashFlood}
+                      className="px-3 py-1 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-1 shadow-xs"
+                    >
+                      <span>{tr('View Warning Card →')}</span>
+                    </button>
+                  )}
                 </div>
               )}
             </div>

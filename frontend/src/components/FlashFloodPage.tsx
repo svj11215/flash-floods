@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import type {
   LocationData,
   FlashFloodWarning,
+  RiskLevel,
   IoTSensor,
   HistoricalEvent,
   OfficialImdWarning,
@@ -57,8 +58,23 @@ export const FlashFloodPage: React.FC<FlashFloodPageProps> = ({
   const { t } = useTranslation();
   const [isSafetyModalOpen, setIsSafetyModalOpen] = useState(false);
   const [warningScope, setWarningScope] = useState<'village' | 'ward'>('village');
-  const [selectedVillageId, setSelectedVillageId] = useState<string>('village-sangam');
-  const [selectedWardId, setSelectedWardId] = useState<string>('ward-04');
+  const [selectedVillageId, setSelectedVillageId] = useState<string>(
+    selectedLocation?.type === 'VILLAGE' ? selectedLocation.id : 'village-sangam'
+  );
+  const [selectedWardId, setSelectedWardId] = useState<string>(
+    selectedLocation?.type === 'WARD' ? selectedLocation.id : 'ward-04'
+  );
+
+  // Sync internal state when selectedLocation updates from parent (e.g. simulator)
+  useEffect(() => {
+    if (selectedLocation) {
+      if (selectedLocation.type === 'VILLAGE') {
+        setSelectedVillageId(selectedLocation.id);
+      } else if (selectedLocation.type === 'WARD') {
+        setSelectedWardId(selectedLocation.id);
+      }
+    }
+  }, [selectedLocation]);
 
   const villages = useMemo(() => {
     const vList = locations.filter(l => l.type === 'VILLAGE');
@@ -70,82 +86,230 @@ export const FlashFloodPage: React.FC<FlashFloodPageProps> = ({
   }, [locations]);
 
   const activeVillage = useMemo(() => {
-    if (selectedLocation && selectedLocation.type === 'VILLAGE') return selectedLocation;
-    return villages.find(v => v.id === selectedVillageId) || villages[0] || {
-      id: 'village-sangam',
-      name: 'Village Sangam (Tributary Confluence)',
-      type: 'VILLAGE',
-      risk_level: 'CRITICAL',
-      rainfall: 68,
-      soil_moisture: 74,
-      slope: 9.2,
-      sensor_water_level: 3.2
-    } as LocationData;
-  }, [villages, selectedLocation, selectedVillageId]);
+    return locations.find(l => l.id === selectedVillageId && l.type === 'VILLAGE')
+      || (selectedLocation && selectedLocation.type === 'VILLAGE' ? selectedLocation : null)
+      || villages.find(v => v.id === selectedVillageId)
+      || villages[0]
+      || ({
+        id: 'village-sangam',
+        name: 'Village Sangam (Tributary Confluence)',
+        type: 'VILLAGE',
+        risk_level: 'LOW',
+        rainfall: 25,
+        soil_moisture: 35,
+        slope: 9.2,
+        sensor_water_level: 1.8
+      } as LocationData);
+  }, [locations, selectedVillageId, selectedLocation, villages]);
 
   const activeFocusLocation = useMemo(() => {
     if (warningScope === 'village') {
-      if (selectedLocation && selectedLocation.type === 'VILLAGE') return selectedLocation;
-      return villages.find(v => v.id === selectedVillageId) || villages[0] || activeVillage;
+      return locations.find(l => l.id === selectedVillageId && l.type === 'VILLAGE')
+        || (selectedLocation && selectedLocation.type === 'VILLAGE' ? selectedLocation : null)
+        || villages.find(v => v.id === selectedVillageId)
+        || villages[0]
+        || activeVillage;
     } else {
-      if (selectedLocation && selectedLocation.type === 'WARD') return selectedLocation;
-      return wards.find(w => w.id === selectedWardId) || wards[0] || locations[0];
+      return locations.find(l => l.id === selectedWardId && l.type === 'WARD')
+        || (selectedLocation && selectedLocation.type === 'WARD' ? selectedLocation : null)
+        || wards.find(w => w.id === selectedWardId)
+        || wards[0]
+        || locations[0];
     }
-  }, [warningScope, selectedLocation, selectedVillageId, selectedWardId, villages, wards, activeVillage, locations]);
+  }, [warningScope, locations, selectedVillageId, selectedWardId, selectedLocation, villages, wards, activeVillage]);
 
   // Construct dynamic warning for the selected location (Village-wise or Ward-wise)
   const displayedWarning: FlashFloodWarning | null = useMemo(() => {
-    // In LIVE mode, warning card disappears!
     if (!isDemoMode) return null;
     if (!activeFocusLocation) return activeFlashWarning;
 
     const loc = activeFocusLocation;
     const isVillage = warningScope === 'village';
 
-    return {
-      id: `warn-${loc.id}`,
-      status: (loc.risk_level as any) || 'CRITICAL',
-      statusLabel: isVillage ? 'FLASH FLOOD WARNING (VILLAGE-WISE)' : 'FLASH FLOOD WARNING (WARD-WISE)',
-      locationId: loc.id,
-      locationName: loc.name,
-      roadName: isVillage ? 'Valley Riparian Corridor' : 'Riverfront Embankment & Main Road',
-      riskLevel: (loc.risk_level as any) || 'CRITICAL',
-      estimatedWindow: loc.expected_window || 'Next 1–3 Hours',
-      reason: loc.cause_intelligence?.explanation || (
-        isVillage
-          ? `Extreme precipitation volume (${loc.rainfall || 78} mm/hr) and rapid tributary surge exceed local riparian absorption capacity, generating rapid torrent runoff.`
-          : `Extreme precipitation volume (${loc.rainfall || 94} mm/hr) drastically exceeds standard civil stormwater catchment thresholds, producing rapid sheet runoff and river backflow.`
-      ),
-      affectedAreas: isVillage
+    // If an active simulator warning belongs to this exact location, respect its customized data
+    if (activeFlashWarning && activeFlashWarning.locationId === loc.id) {
+      return activeFlashWarning;
+    }
+
+    const risk: RiskLevel = ((loc.risk_level as RiskLevel) || 'LOW');
+    const rainfall = typeof loc.rainfall === 'number' ? loc.rainfall : 25;
+    const soilMoisture = typeof loc.soil_moisture === 'number' ? loc.soil_moisture : 35;
+    const waterLevel = typeof loc.sensor_water_level === 'number' ? loc.sensor_water_level : (
+      risk === 'CRITICAL' ? 4.8 : risk === 'HIGH' ? 3.8 : risk === 'MODERATE' ? 2.8 : 1.8
+    );
+
+    let status: 'LOW' | 'WATCH' | 'WARNING' | 'CRITICAL' = 'LOW';
+    let statusLabel = isVillage ? 'NORMAL MONITORING / LOW RISK (VILLAGE-WISE)' : 'NORMAL MONITORING / LOW RISK (WARD-WISE)';
+    let estimatedWindow = 'No Imminent Threat / Safe';
+    let reason = '';
+    let affectedAreas: string[] = [];
+    let actions: string[] = [];
+    let timeline: { label: string; subtext: string; isTriggered: boolean }[] = [];
+
+    if (risk === 'CRITICAL') {
+      status = 'CRITICAL';
+      statusLabel = isVillage ? 'FLASH FLOOD WARNING (VILLAGE-WISE)' : 'FLASH FLOOD WARNING (WARD-WISE)';
+      estimatedWindow = loc.expected_window || 'Immediate / Next 1–3 Hours';
+      reason = isVillage
+        ? `Torrential cloudburst rain (${rainfall.toFixed(0)} mm/hr) has triggered dangerous flash floods. Rivers and hill streams are rapidly overflowing their banks.`
+        : `Extreme downpour (${rainfall.toFixed(0)} mm/hr) is causing severe flash flooding and rapid street torrents across low-lying roads.`;
+      affectedAreas = isVillage
         ? [
-            `${loc.name} (Lower Terraces)`,
-            'Tributary Sluice Channel & River Ghat',
+            `${loc.name} (Lower Terraces & Floodplain Homes)`,
+            'Tributary Sluice Channel & River Ghat (Submerged)',
             'Suspension bridge ingress approach'
           ]
         : [
             loc.name,
             'Low-lying riparian valley reach & underpasses',
             'Riverfront causeways'
-          ],
-      actions: isVillage
+          ];
+      actions = isVillage
         ? [
-            'Initiate staged evacuation of low-lying riverbank homes',
-            'Move cattle and family members to upper ridge relief shelters',
-            'Strictly avoid pedestrian rope bridges over rising torrents',
-            'Follow instructions from Gram Panchayat and emergency wireless alerts (Call 112)'
+            'Evacuate now: families near the river must move to upper shelters immediately',
+            'Move cattle, family members, and essential belongings to higher safe ground',
+            'Never try to cross rope bridges, flooded roads, or fast-moving river water',
+            'Follow emergency announcements and call 112 if you need rescue help'
           ]
         : [
-            'Initiate Staged Evacuation in Lowland Riparian Zone',
-            'Complete Road Closures on River Road & Causeways',
-            'Activate Relief Shelter A (Capacity: 400 persons)',
-            'Broadcast Multi-channel Cell Broadcast Early Warning SMS'
-          ],
-      timeline: [
-        { label: 'NOW', subtext: isVillage ? `River gauge telemetry active (${loc.sensor_water_level || 3.2}m surge)` : 'External telemetry active', isTriggered: true },
-        { label: isVillage ? 'Tributary inflow rate monitored' : 'Inflow rate monitored', subtext: isVillage ? `${loc.rainfall || 68} mm/h catchment inflow recorded` : 'Real-time observation', isTriggered: true },
-        { label: 'Ground saturation', subtext: `Soil moisture at ${loc.soil_moisture || 74}% capacity`, isTriggered: true },
-        { label: `⚠️ ${loc.risk_level || 'CRITICAL'} FLOOD RISK`, subtext: 'NEXT 1–3 HOURS', isTriggered: true }
-      ],
+            'Move to upper floors or nearby safe community shelters immediately',
+            'Stay completely away from flooded streets, underpasses, and open drains',
+            'Switch off main electricity breakers if water enters your home',
+            'Call 112 immediately for emergency rescue and help'
+          ];
+      timeline = [
+        { label: 'NOW', subtext: isVillage ? `River gauge telemetry critical (${waterLevel.toFixed(1)}m surge)` : 'External telemetry active', isTriggered: true },
+        { label: isVillage ? 'Tributary inflow rate monitored' : 'Inflow rate monitored', subtext: `${rainfall.toFixed(0)} mm/h cloudburst inflow recorded`, isTriggered: true },
+        { label: 'Ground saturation', subtext: `Soil moisture at ${soilMoisture}% capacity (Fully saturated)`, isTriggered: true },
+        { label: '🔴 CRITICAL FLOOD RISK', subtext: estimatedWindow, isTriggered: true }
+      ];
+    } else if (risk === 'HIGH') {
+      status = 'WARNING';
+      statusLabel = isVillage ? 'FLOOD WARNING (VILLAGE-WISE)' : 'FLOOD WARNING (WARD-WISE)';
+      estimatedWindow = loc.expected_window || 'Next 1–3 Hours';
+      reason = isVillage
+        ? `Heavy rainfall (${rainfall.toFixed(0)} mm/hr) is causing rapid river surges. High chance of fast-moving flash floods along riverbanks and low crossings.`
+        : `Heavy rainfall (${rainfall.toFixed(0)} mm/hr) is rapidly flooding roads, underpasses, and low areas.`;
+      affectedAreas = isVillage
+        ? [
+            `${loc.name} (Lower Terraces & River Ghat)`,
+            'Tributary Sluice Channel (Crest Level)',
+            'Suspension bridge approach roads'
+          ]
+        : [
+            loc.name,
+            'Low-lying underpasses & arterial roads',
+            'Riverfront causeways'
+          ];
+      actions = isVillage
+        ? [
+            'Get ready to move: families in low-lying river areas should prepare to evacuate',
+            'Move cattle, stored grain, and vulnerable family members to higher ground',
+            'Stay away from swollen river banks, low crossings, and footbridges',
+            'Follow village Gram Panchayat alerts and call 112 for emergency help'
+          ]
+        : [
+            'Avoid flooded roads and underpasses; use higher alternate roads',
+            'Help elderly family members and move vehicles to higher parking areas',
+            'Avoid unnecessary travel until road water recedes',
+            'Follow city emergency alerts and call 112 if you need help'
+          ];
+      timeline = [
+        { label: 'NOW', subtext: isVillage ? `River gauge surge alert (${waterLevel.toFixed(1)}m level)` : 'External telemetry alert', isTriggered: true },
+        { label: isVillage ? 'Tributary inflow rate monitored' : 'Inflow rate monitored', subtext: `${rainfall.toFixed(0)} mm/h heavy inflow recorded`, isTriggered: true },
+        { label: 'Ground saturation', subtext: `Soil moisture high at ${soilMoisture}% capacity`, isTriggered: true },
+        { label: '🟠 HIGH FLOOD RISK', subtext: estimatedWindow, isTriggered: true }
+      ];
+    } else if (risk === 'MODERATE') {
+      status = 'WATCH';
+      statusLabel = isVillage ? 'FLOOD WATCH (VILLAGE-WISE)' : 'FLOOD WATCH (WARD-WISE)';
+      estimatedWindow = loc.expected_window || 'Next 3–6 Hours';
+      reason = isVillage
+        ? `Steady rainfall (${rainfall.toFixed(0)} mm/hr) is causing river and hill streams to rise. Watch for sudden water flow in low-lying areas.`
+        : `Steady rain (${rainfall.toFixed(0)} mm/hr) is causing slow water runoff and puddling on low roads.`;
+      affectedAreas = isVillage
+        ? [
+            `${loc.name} (Riverbank Agricultural Terraces)`,
+            'Tributary Sluice Channel & River Ghat (Caution Zone)',
+            'Low-elevation village dip crossings'
+          ]
+        : [
+            loc.name,
+            'Curbside lanes and drainage grates',
+            'Secondary low-elevation roads'
+          ];
+      actions = isVillage
+        ? [
+            'Stay away from river banks, bathing ghats, and fast-flowing water',
+            'Move cattle and farm equipment away from the water edge to higher ground',
+            'Listen for village loudspeaker announcements and weather updates',
+            'Keep an emergency bag ready with drinking water, torch, and medicines'
+          ]
+        : [
+            'Drive slowly and avoid driving through deep curbside puddles',
+            'Clear trash and leaves from drain covers outside your home or shop',
+            'Check city traffic and weather updates before traveling',
+            'Keep flashlights and emergency helpline numbers handy'
+          ];
+      timeline = [
+        { label: 'NOW', subtext: isVillage ? `River gauge telemetry active (${waterLevel.toFixed(1)}m level)` : 'External telemetry active', isTriggered: true },
+        { label: isVillage ? 'Tributary inflow rate monitored' : 'Inflow rate monitored', subtext: `${rainfall.toFixed(0)} mm/h catchment inflow recorded`, isTriggered: true },
+        { label: 'Ground saturation', subtext: `Soil moisture at ${soilMoisture}% capacity`, isTriggered: true },
+        { label: '🟡 FLOOD WATCH ACTIVE', subtext: estimatedWindow, isTriggered: true }
+      ];
+    } else {
+      // LOW / SAFE
+      status = 'LOW';
+      statusLabel = isVillage ? 'NORMAL MONITORING / LOW RISK (VILLAGE-WISE)' : 'NORMAL MONITORING / LOW RISK (WARD-WISE)';
+      estimatedWindow = 'No Imminent Threat / Safe';
+      reason = isVillage
+        ? `Rainfall is light (${rainfall.toFixed(0)} mm/hr). River streams are flowing safely within their banks with zero flash flood risk.`
+        : `Rainfall is light (${rainfall.toFixed(0)} mm/hr). Streets and drains are flowing normally with no flood risk.`;
+      affectedAreas = isVillage
+        ? [
+            `${loc.name} (Upper & Lower Terraces - Nominal Flow)`,
+            'Tributary Sluice Channel & River Ghat (Safe water flow)',
+            'Suspension bridge approach (Fully open)'
+          ]
+        : [
+            loc.name,
+            'Stormwater drainage channels (Clear outflow)',
+            'Underpasses and public transit corridors (Dry)'
+          ];
+      actions = isVillage
+        ? [
+            'Everything is safe. Continue your normal daily work and routine',
+            'No flooding risk right now. Village authorities are monitoring weather updates',
+            'Keep farm ditches and water drains clean so rainwater flows easily',
+            'Call 112 if you notice any sudden water rise in your area'
+          ]
+        : [
+            'Roads are clear and safe. Traffic is moving normally',
+            'No waterlogging threat right now. Normal daily work can continue',
+            'Keep roadside gutters clear of plastic and household waste',
+            'Call 112 or local helpline if you spot water leaks or blocked drains'
+          ];
+      timeline = [
+        { label: 'NOW', subtext: isVillage ? `River gauge telemetry stable (${waterLevel.toFixed(1)}m normal stage)` : 'External telemetry stable', isTriggered: true },
+        { label: isVillage ? 'Tributary inflow rate monitored' : 'Inflow rate monitored', subtext: `${rainfall.toFixed(0)} mm/h nominal flow recorded`, isTriggered: true },
+        { label: 'Ground saturation', subtext: `Soil moisture safe at ${soilMoisture}% capacity`, isTriggered: true },
+        { label: '🟢 LOW RISK / SAFE', subtext: 'ROUTINE MONITORING ACTIVE', isTriggered: true }
+      ];
+    }
+
+    return {
+      id: `warn-${loc.id}`,
+      status,
+      statusLabel,
+      locationId: loc.id,
+      locationName: loc.name,
+      roadName: isVillage ? 'Valley Riparian Corridor' : 'Riverfront Embankment & Main Road',
+      riskLevel: risk,
+      estimatedWindow,
+      reason,
+      affectedAreas,
+      actions,
+      timeline,
       timestamp: new Date().toLocaleTimeString('en-IN') + ' IST'
     };
   }, [isDemoMode, activeFocusLocation, warningScope, activeFlashWarning]);

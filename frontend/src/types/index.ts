@@ -221,7 +221,7 @@ export interface ImageAnalysisResponse {
   image_dimensions?: { width: number; height: number };
 }
 
-export type WarningStatus = 'NONE' | 'WATCH' | 'WARNING' | 'CRITICAL';
+export type WarningStatus = 'NONE' | 'LOW' | 'SAFE' | 'NORMAL' | 'WATCH' | 'WARNING' | 'CRITICAL';
 
 export interface WarningTimelineStep {
   label: string;

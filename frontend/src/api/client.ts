@@ -937,8 +937,8 @@ export const apiClient = {
       return {
         success: true,
         message: '🚨 Emergency Alert Triggered (Local Engine)',
-        usersInRiskZone: 1,
-        notificationsSent: 1,
+        usersInRiskZone: 3,
+        notificationsSent: 3,
         results: [{ user: 'Registered Citizen', insideZone: true }]
       };
     }
