@@ -208,7 +208,7 @@ export const translations: Record<Language, Translations> = {
     navStreetWaterlogging: '🚧 Street Waterlogging',
     navReport: 'Report',
     navSimulator: 'Simulator',
-    navAboutHelp: 'About / Help',
+    navAboutHelp: 'Help',
     navAuthority: 'AUTHORITY',
     
     liveDataActive: '● LIVE DATA ACTIVE',
@@ -364,8 +364,8 @@ export const translations: Record<Language, Translations> = {
     whatYouShouldDo: 'Important Steps to Stay Safe',
     close: 'Close',
     
-    aboutHelpTitle: 'ABOUT JALRAKSHAK',
-    aboutHelpDesc: 'Simple guide to understanding flood warnings and staying safe during heavy rains.',
+    aboutHelpTitle: 'EMERGENCY HELP & SAFETY',
+    aboutHelpDesc: 'Immediate guidance, essential first aid, unified flood & waterlogging safety protocols, and 24/7 disaster management contacts.',
     twoSystemsHeading: 'Two Simple Systems for Your Safety',
     twoSystemsDesc: 'Flash floods in rivers need evacuation to higher ground, while street waterlogging requires avoiding flooded roads and clearing gutters.',
     emergencyHelplines: 'Emergency Helplines (24/7 Free)',
@@ -389,7 +389,7 @@ export const translations: Record<Language, Translations> = {
     navStreetWaterlogging: '🚧 सड़कों पर जलभराव',
     navReport: 'समस्या बताएं (Report)',
     navSimulator: 'परीक्षण (Simulator)',
-    navAboutHelp: 'मदद / जानकारी',
+    navAboutHelp: 'मदद',
     navAuthority: 'कंट्रोल रूम (Authority)',
     
     liveDataActive: '● वास्तविक मौसम डेटा सक्रिय',
@@ -545,8 +545,8 @@ export const translations: Record<Language, Translations> = {
     whatYouShouldDo: 'सुरक्षित रहने के लिए जरूरी कदम',
     close: 'बंद करें',
     
-    aboutHelpTitle: 'जल रक्षक के बारे में',
-    aboutHelpDesc: 'बाढ़ और जलभराव को समझने और सुरक्षित रहने के लिए आसान गाइड।',
+    aboutHelpTitle: 'आपत्कालीन सहायता एवं सुरक्षा',
+    aboutHelpDesc: 'प्राथमिक उपचार (First Aid), बाढ़ एवं जलभराव सुरक्षा निर्देश और 24/7 आपदा प्रबंधन हेल्पलाइन।',
     twoSystemsHeading: 'आपकी सुरक्षा के लिए दो अलग प्रणालियां',
     twoSystemsDesc: 'नदी की बाढ़ में ऊंचे स्थानों पर जाना जरूरी होता है, जबकि सड़क के जलभराव में बंद नालों की सफाई और सुरक्षित रास्तों का चयन करना होता है।',
     emergencyHelplines: 'आपातकालीन हेल्पलाइन नंबर (24/7 निशुल्क)',
@@ -570,7 +570,7 @@ export const translations: Record<Language, Translations> = {
     navStreetWaterlogging: '🚧 रस्त्यांवर साचलेले पाणी',
     navReport: 'समस्या नोंदवा (Report)',
     navSimulator: 'सिम्युलेटर (Simulator)',
-    navAboutHelp: 'माहिती / मदत',
+    navAboutHelp: 'मदत',
     navAuthority: 'नियंत्रण कक्ष (Authority)',
     
     liveDataActive: '● थेट हवामान माहिती सक्रिय',
@@ -726,8 +726,8 @@ export const translations: Record<Language, Translations> = {
     whatYouShouldDo: 'सुरक्षित राहण्यासाठी महत्त्वाच्या सूचना',
     close: 'बंद करा',
     
-    aboutHelpTitle: 'जल रक्षक बद्दल माहिती',
-    aboutHelpDesc: 'पूर आणि पाणी साचण्यापासून स्वतःचे रक्षण करण्यासाठी सोपी मार्गदर्शिका.',
+    aboutHelpTitle: 'आपत्कालीन मदत आणि सुरक्षा',
+    aboutHelpDesc: 'प्रथमोपचार (First Aid), पूर व पाणी साचणे सुरक्षा मार्गदर्शिका आणि २४/७ आपत्ती व्यवस्थापन हेल्पलाइन.',
     twoSystemsHeading: 'तुमच्या सुरक्षिततेसाठी दोन स्वतंत्र यंत्रणा',
     twoSystemsDesc: 'नदीच्या पुरात त्वरित उंच जागेवर जाणे आवश्यक असते, तर रस्त्यावरील पाण्यात तुंबलेली गटारे स्वच्छ करणे आणि सुरक्षित रस्ते निवडणे गरजेचे असते.',
     emergencyHelplines: 'तातडीचे मदत क्रमांक (२४ तास विनामूल्य)',

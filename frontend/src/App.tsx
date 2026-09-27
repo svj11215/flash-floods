@@ -233,26 +233,12 @@ function AppMain() {
         if (liveEnvRes) {
           setLiveEnvironment(liveEnvRes);
         }
-        const criticalAlert = alertsRes?.alerts?.find((a: any) => a.severity === 'CRITICAL' || a.severity === 'WARNING');
-        if (criticalAlert) {
-          sync.setActiveFlashWarning({
-            id: criticalAlert.alert_id,
-            status: criticalAlert.severity as any,
-            statusLabel: 'FLASH FLOOD WARNING',
-            locationId: criticalAlert.location_id,
-            locationName: criticalAlert.location_name,
-            roadName: 'Main Valley Corridor',
-            riskLevel: criticalAlert.severity as any,
-            estimatedWindow: criticalAlert.expected_window,
-            reason: criticalAlert.cause_explanation,
-            affectedAreas: [criticalAlert.location_name, 'Low-lying riparian valley reach'],
-            actions: criticalAlert.recommended_actions?.map((a: any) => a.title) || ['Avoid low-lying roadways', 'Follow safety guidelines'],
-            timeline: [
-              { label: 'NOW', subtext: 'External telemetry active', isTriggered: true },
-              { label: 'Inflow rate monitored', subtext: 'Real-time observation', isTriggered: true }
-            ],
-            timestamp: new Date().toLocaleTimeString('en-IN') + ' IST'
-          });
+        // In LIVE mode, clear warning so card disappears
+        sync.setActiveFlashWarning(null);
+      } else {
+        // In DEMO mode, ensure demo warning is active
+        if (!sync.activeFlashWarning) {
+          sync.setActiveFlashWarning(INITIAL_DEMO_WARNING_SCENARIO_2);
         }
       }
 
@@ -278,6 +264,11 @@ function AppMain() {
   const handleModeChange = async (newModeIsDemo: boolean) => {
     sync.setMode(newModeIsDemo);
     setIsRefreshing(true);
+    if (!newModeIsDemo) {
+      sync.setActiveFlashWarning(null);
+    } else if (!sync.activeFlashWarning) {
+      sync.setActiveFlashWarning(INITIAL_DEMO_WARNING_SCENARIO_2);
+    }
     try {
       await apiClient.setMode(newModeIsDemo ? 'DEMO' : 'LIVE');
       await fetchAllData(newModeIsDemo ? 'DEMO' : 'LIVE', true);
@@ -450,7 +441,7 @@ function AppMain() {
               />
             )}
 
-            {/* 7. ABOUT / HELP TAB */}
+            {/* 7. HELP TAB */}
             {currentTab === 'about' && (
               <AboutHelpPage
                 onNavigateToFlashFlood={() => setCurrentTab('flash-flood')}
@@ -549,13 +540,6 @@ function AppMain() {
             <span>{tr('Emergency Helpline: 112')}</span>
             <span>•</span>
             <span>{tr('Municipal Disaster Management Cell')}</span>
-            <span>•</span>
-            <button
-              onClick={() => setCurrentTab('response-center')}
-              className="text-sky-400 hover:underline font-semibold cursor-pointer"
-            >
-              {tr('Authority Center (EOC / Simulator)')}
-            </button>
           </div>
         </div>
       </footer>

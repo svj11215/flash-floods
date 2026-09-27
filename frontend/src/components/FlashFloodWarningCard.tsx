@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import type { FlashFloodWarning } from '../types';
+import type { FlashFloodWarning, LocationData } from '../types';
 import { useTranslation } from '../services/LanguageContext';
 import {
   AlertTriangle,
@@ -19,11 +19,19 @@ interface FlashFloodWarningCardProps {
   warning: FlashFloodWarning | null;
   onViewOnMap?: (locationId?: string) => void;
   showTimelineOnly?: boolean;
+  warningScope?: 'village' | 'ward';
+  onToggleScope?: (scope: 'village' | 'ward') => void;
+  availableLocations?: LocationData[];
+  onSelectLocation?: (locationId: string) => void;
 }
 
 export const FlashFloodWarningCard: React.FC<FlashFloodWarningCardProps> = ({
   warning,
-  onViewOnMap
+  onViewOnMap,
+  warningScope = 'village',
+  onToggleScope,
+  availableLocations,
+  onSelectLocation
 }) => {
   const { t, tr } = useTranslation();
   const [showSafetyModal, setShowSafetyModal] = useState(false);
@@ -118,10 +126,16 @@ export const FlashFloodWarningCard: React.FC<FlashFloodWarningCardProps> = ({
           </div>
         </div>
 
-        <div className="text-right text-xs bg-black/20 px-3 py-1.5 rounded-xl">
-          <div className="text-[10px] uppercase font-bold text-white/70">{t.estimatedTime}</div>
-          <div className="text-base font-black text-white font-mono tracking-wide">
-            {tr(warning.estimatedWindow)}
+        <div className="flex items-center gap-3">
+          <div className="inline-flex items-center px-3 py-1 bg-white text-slate-950 rounded-xl text-xs font-black font-mono shadow-xs">
+            <span>🏡 Village-Wise</span>
+          </div>
+
+          <div className="text-right text-xs bg-black/20 px-3 py-1.5 rounded-xl">
+            <div className="text-[10px] uppercase font-bold text-white/70">{t.estimatedTime}</div>
+            <div className="text-base font-black text-white font-mono tracking-wide">
+              {tr(warning.estimatedWindow)}
+            </div>
           </div>
         </div>
       </div>
@@ -131,14 +145,37 @@ export const FlashFloodWarningCard: React.FC<FlashFloodWarningCardProps> = ({
         {/* Location & Risk Level */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-slate-100">
           <div>
-            <span className="text-[11px] font-black uppercase tracking-widest text-slate-400 block mb-1">
-              {t.affectedRegionalZone}
-            </span>
-            <div className="flex items-center gap-2">
-              <MapPin className="w-5 h-5 text-red-600 shrink-0" />
-              <h3 className="text-xl sm:text-2xl font-black text-slate-900 font-mono">
-                {tr(warning.locationName).toUpperCase()}
-              </h3>
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-[11px] font-black uppercase tracking-widest text-slate-400">
+                AFFECTED FLOOD ZONE (VILLAGE-WISE)
+              </span>
+              <span className="text-[10px] font-black font-mono px-2 py-0.5 rounded-full border bg-sky-50 text-sky-800 border-sky-300">
+                🏡 VILLAGE LEVEL
+              </span>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="flex items-center gap-2">
+                <MapPin className="w-5 h-5 text-red-600 shrink-0" />
+                <h3 className="text-xl sm:text-2xl font-black text-slate-900 font-mono">
+                  {tr(warning.locationName).toUpperCase()}
+                </h3>
+              </div>
+
+              {availableLocations && availableLocations.length > 0 && onSelectLocation && (
+                <select
+                  value={warning.locationId}
+                  onChange={(e) => onSelectLocation(e.target.value)}
+                  className="bg-slate-100 hover:bg-slate-200 border border-slate-300 rounded-xl px-2.5 py-1 text-xs font-bold text-slate-900 cursor-pointer focus:ring-2 focus:ring-blue-500"
+                  title="Switch location warning"
+                >
+                  {availableLocations.map(loc => (
+                    <option key={loc.id} value={loc.id}>
+                      {loc.name} ({loc.risk_level || 'ALERT'})
+                    </option>
+                  ))}
+                </select>
+              )}
             </div>
           </div>
 

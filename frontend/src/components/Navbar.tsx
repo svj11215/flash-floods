@@ -4,7 +4,6 @@ import {
   Home,
   Camera,
   Bell,
-  Radio,
   RefreshCw,
   Menu,
   X,
@@ -247,19 +246,6 @@ export const Navbar: React.FC<NavbarProps> = ({
               <span>🚨 Alert Registration</span>
             </button>
           )}
-
-          <button
-            onClick={() => setCurrentTab('response-center')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition border cursor-pointer ${
-              currentTab === 'response-center'
-                ? 'bg-slate-900 text-sky-300 border-slate-900 shadow-xs'
-                : 'bg-slate-100 text-slate-700 border-slate-300 hover:bg-slate-200'
-            }`}
-            title="Municipal Responders & DEOC Authority Dashboard"
-          >
-            <Radio className={`w-3.5 h-3.5 ${currentTab === 'response-center' ? 'text-sky-400' : 'text-slate-500'}`} />
-            <span>{t.navAuthority}</span>
-          </button>
         </div>
 
         {/* Mobile Hamburger Toggle & Quick Report */}
@@ -396,24 +382,6 @@ export const Navbar: React.FC<NavbarProps> = ({
             >
               <HelpCircle className="w-3.5 h-3.5" />
               <span>{t.navAboutHelp}</span>
-            </button>
-          </div>
-
-          <div className="pt-2 border-t border-slate-100">
-            <button
-              onClick={() => {
-                setCurrentTab('response-center');
-                setMobileMenuOpen(false);
-              }}
-              className="w-full flex items-center justify-between p-2.5 rounded-xl bg-slate-900 text-white text-xs font-bold"
-            >
-              <div className="flex items-center gap-2">
-                <Radio className="w-4 h-4 text-sky-400" />
-                <span>{t.navAuthority}</span>
-              </div>
-              <span className="text-[10px] font-mono px-1.5 py-0.5 bg-slate-800 text-amber-300 rounded font-bold">
-                EOC
-              </span>
             </button>
           </div>
         </div>

@@ -56,15 +56,22 @@ export const FlashFloodPage: React.FC<FlashFloodPageProps> = ({
 }) => {
   const { t } = useTranslation();
   const [isSafetyModalOpen, setIsSafetyModalOpen] = useState(false);
+  const [warningScope, setWarningScope] = useState<'village' | 'ward'>('village');
+  const [selectedVillageId, setSelectedVillageId] = useState<string>('village-sangam');
+  const [selectedWardId, setSelectedWardId] = useState<string>('ward-04');
 
   const villages = useMemo(() => {
     const vList = locations.filter(l => l.type === 'VILLAGE');
     return vList.length > 0 ? vList : locations;
   }, [locations]);
 
+  const wards = useMemo(() => {
+    return locations.filter(l => l.type === 'WARD');
+  }, [locations]);
+
   const activeVillage = useMemo(() => {
     if (selectedLocation && selectedLocation.type === 'VILLAGE') return selectedLocation;
-    return villages.find(v => v.id === 'village-sangam') || villages[0] || {
+    return villages.find(v => v.id === selectedVillageId) || villages[0] || {
       id: 'village-sangam',
       name: 'Village Sangam (Tributary Confluence)',
       type: 'VILLAGE',
@@ -74,12 +81,79 @@ export const FlashFloodPage: React.FC<FlashFloodPageProps> = ({
       slope: 9.2,
       sensor_water_level: 3.2
     } as LocationData;
-  }, [villages, selectedLocation]);
+  }, [villages, selectedLocation, selectedVillageId]);
+
+  const activeFocusLocation = useMemo(() => {
+    if (warningScope === 'village') {
+      if (selectedLocation && selectedLocation.type === 'VILLAGE') return selectedLocation;
+      return villages.find(v => v.id === selectedVillageId) || villages[0] || activeVillage;
+    } else {
+      if (selectedLocation && selectedLocation.type === 'WARD') return selectedLocation;
+      return wards.find(w => w.id === selectedWardId) || wards[0] || locations[0];
+    }
+  }, [warningScope, selectedLocation, selectedVillageId, selectedWardId, villages, wards, activeVillage, locations]);
+
+  // Construct dynamic warning for the selected location (Village-wise or Ward-wise)
+  const displayedWarning: FlashFloodWarning | null = useMemo(() => {
+    // In LIVE mode, warning card disappears!
+    if (!isDemoMode) return null;
+    if (!activeFocusLocation) return activeFlashWarning;
+
+    const loc = activeFocusLocation;
+    const isVillage = warningScope === 'village';
+
+    return {
+      id: `warn-${loc.id}`,
+      status: (loc.risk_level as any) || 'CRITICAL',
+      statusLabel: isVillage ? 'FLASH FLOOD WARNING (VILLAGE-WISE)' : 'FLASH FLOOD WARNING (WARD-WISE)',
+      locationId: loc.id,
+      locationName: loc.name,
+      roadName: isVillage ? 'Valley Riparian Corridor' : 'Riverfront Embankment & Main Road',
+      riskLevel: (loc.risk_level as any) || 'CRITICAL',
+      estimatedWindow: loc.expected_window || 'Next 1–3 Hours',
+      reason: loc.cause_intelligence?.explanation || (
+        isVillage
+          ? `Extreme precipitation volume (${loc.rainfall || 78} mm/hr) and rapid tributary surge exceed local riparian absorption capacity, generating rapid torrent runoff.`
+          : `Extreme precipitation volume (${loc.rainfall || 94} mm/hr) drastically exceeds standard civil stormwater catchment thresholds, producing rapid sheet runoff and river backflow.`
+      ),
+      affectedAreas: isVillage
+        ? [
+            `${loc.name} (Lower Terraces)`,
+            'Tributary Sluice Channel & River Ghat',
+            'Suspension bridge ingress approach'
+          ]
+        : [
+            loc.name,
+            'Low-lying riparian valley reach & underpasses',
+            'Riverfront causeways'
+          ],
+      actions: isVillage
+        ? [
+            'Initiate staged evacuation of low-lying riverbank homes',
+            'Move cattle and family members to upper ridge relief shelters',
+            'Strictly avoid pedestrian rope bridges over rising torrents',
+            'Follow instructions from Gram Panchayat and emergency wireless alerts (Call 112)'
+          ]
+        : [
+            'Initiate Staged Evacuation in Lowland Riparian Zone',
+            'Complete Road Closures on River Road & Causeways',
+            'Activate Relief Shelter A (Capacity: 400 persons)',
+            'Broadcast Multi-channel Cell Broadcast Early Warning SMS'
+          ],
+      timeline: [
+        { label: 'NOW', subtext: isVillage ? `River gauge telemetry active (${loc.sensor_water_level || 3.2}m surge)` : 'External telemetry active', isTriggered: true },
+        { label: isVillage ? 'Tributary inflow rate monitored' : 'Inflow rate monitored', subtext: isVillage ? `${loc.rainfall || 68} mm/h catchment inflow recorded` : 'Real-time observation', isTriggered: true },
+        { label: 'Ground saturation', subtext: `Soil moisture at ${loc.soil_moisture || 74}% capacity`, isTriggered: true },
+        { label: `⚠️ ${loc.risk_level || 'CRITICAL'} FLOOD RISK`, subtext: 'NEXT 1–3 HOURS', isTriggered: true }
+      ],
+      timestamp: new Date().toLocaleTimeString('en-IN') + ' IST'
+    };
+  }, [isDemoMode, activeFocusLocation, warningScope, activeFlashWarning]);
 
   // 🌊 Flood Spread Prediction Simulation (Realistic hydrodynamic shape for selected village)
   const spreadSimulation: FloodSpreadSimulation = useMemo(() => {
-    return calculateFloodSpreadSimulation(activeVillage, activeFlashWarning);
-  }, [activeVillage, activeFlashWarning]);
+    return calculateFloodSpreadSimulation(activeVillage, displayedWarning || activeFlashWarning);
+  }, [activeVillage, displayedWarning, activeFlashWarning]);
 
   const [activeSpreadStageKey, setActiveSpreadStageKey] = useState<FloodSpreadStageKey>('NOW');
   const [animationState, setAnimationState] = useState<'idle' | 'running' | 'completed'>('idle');
@@ -176,28 +250,21 @@ export const FlashFloodPage: React.FC<FlashFloodPageProps> = ({
       </div>
 
       {/* 2. DEDICATED FLASH FLOOD WARNING */}
-      {activeFlashWarning && activeFlashWarning.status !== 'NONE' ? (
+      {isDemoMode && displayedWarning && displayedWarning.status !== 'NONE' ? (
         <FlashFloodWarningCard
-          warning={activeFlashWarning}
+          warning={displayedWarning}
           onViewOnMap={() => { }}
+          warningScope="village"
+          availableLocations={villages}
+          onSelectLocation={(locId) => {
+            const loc = locations.find(l => l.id === locId);
+            if (loc) {
+              setSelectedVillageId(locId);
+              onSelectLocation(loc);
+            }
+          }}
         />
-      ) : (
-        <div className="bg-emerald-50 border-2 border-emerald-300 rounded-3xl p-5 sm:p-6 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-emerald-600 text-white flex items-center justify-center font-bold shrink-0">
-              ✓
-            </div>
-            <div>
-              <div className="text-[10px] font-black uppercase text-emerald-800 font-mono tracking-wider">
-                {t.safeStatusTitle}
-              </div>
-              <p className="text-xs text-emerald-950 font-medium mt-0.5">
-                {t.twoSystemsDesc}
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
+      ) : null}
 
       {/* 5. REGIONAL RISK MAP (Flash Flood Focus) */}
       <section className="space-y-4">
@@ -310,39 +377,47 @@ export const FlashFloodPage: React.FC<FlashFloodPageProps> = ({
           </div>
         </div>
 
-        {/* Village Inspection Selector Bar */}
+        {/* Village / Ward Inspection Selector Bar */}
         <div className="bg-white p-4 sm:p-5 rounded-3xl border border-slate-200 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="space-y-0.5">
             <div className="flex flex-wrap items-center gap-2">
               <h3 className="text-sm font-black text-slate-900 tracking-tight font-mono flex items-center gap-2">
-                <span>VILLAGE-WISE FLASH FLOOD RISK VIEW</span>
+                <span>{warningScope === 'village' ? 'VILLAGE-WISE FLASH FLOOD RISK VIEW' : 'WARD-WISE FLASH FLOOD RISK VIEW'}</span>
               </h3>
               <span className={`text-[10px] font-mono font-black px-2.5 py-0.5 rounded-full border ${
-                activeVillage.risk_level === 'CRITICAL' ? 'bg-red-50 text-red-700 border-red-300' :
-                activeVillage.risk_level === 'HIGH' ? 'bg-orange-50 text-orange-700 border-orange-300' :
-                activeVillage.risk_level === 'MODERATE' ? 'bg-amber-50 text-amber-700 border-amber-300' :
+                activeFocusLocation.risk_level === 'CRITICAL' ? 'bg-red-50 text-red-700 border-red-300' :
+                activeFocusLocation.risk_level === 'HIGH' ? 'bg-orange-50 text-orange-700 border-orange-300' :
+                activeFocusLocation.risk_level === 'MODERATE' ? 'bg-amber-50 text-amber-700 border-amber-300' :
                 'bg-emerald-50 text-emerald-700 border-emerald-300'
               }`}>
-                OVERALL RISK: {activeVillage.risk_level || 'EVALUATING'} ({activeVillage.risk_probability || 78}%)
+                OVERALL RISK: {activeFocusLocation.risk_level || 'EVALUATING'} ({activeFocusLocation.risk_probability || 78}%)
               </span>
             </div>
             <p className="text-xs text-slate-500">
-              Showing overall flash flood risk for selected village with clean boundaries, river gauges, and hydrodynamic flow vectors
+              {warningScope === 'village'
+                ? 'Showing overall flash flood risk for selected village with clean boundaries, river gauges, and hydrodynamic flow vectors'
+                : 'Showing flash flood impact for selected municipal ward along river corridor and drainage catchment'}
             </p>
           </div>
 
-          {/* Quick Village Picker */}
+          {/* Quick Village / Ward Picker */}
           <div className="flex items-center gap-2">
-            <span className="text-xs font-bold text-slate-600">Select Village:</span>
+            <span className="text-xs font-bold text-slate-600">
+              {warningScope === 'village' ? 'Select Village:' : 'Select Ward:'}
+            </span>
             <select
-              value={activeVillage.id}
+              value={activeFocusLocation.id}
               onChange={(e) => {
-                const found = villages.find(l => l.id === e.target.value);
-                if (found) onSelectLocation(found);
+                const found = locations.find(l => l.id === e.target.value);
+                if (found) {
+                  if (warningScope === 'village') setSelectedVillageId(found.id);
+                  else setSelectedWardId(found.id);
+                  onSelectLocation(found);
+                }
               }}
               className="bg-slate-100 border border-slate-300 rounded-xl px-3 py-1.5 text-xs font-bold text-slate-900 cursor-pointer focus:ring-2 focus:ring-blue-500"
             >
-              {villages.map(loc => (
+              {(warningScope === 'village' ? villages : wards).map(loc => (
                 <option key={loc.id} value={loc.id}>
                   {loc.name} ({loc.risk_level || 'EVALUATING'})
                 </option>

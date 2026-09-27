@@ -2,6 +2,7 @@ import logging
 from typing import Dict, Any, List
 import numpy as np
 try:
+    # pyrefly: ignore [missing-import]
     import shap
 except ImportError:
     shap = None
