@@ -1,34 +1,37 @@
 # 🌊 JalRakshak — जल रक्षक
-### AI-Powered Hyperlocal Flood & Landslide Early Warning System
+### Java Full-Stack & AI-Powered Hyperlocal Flood and Landslide Early Warning System
 
 > **Predict. Explain. Simulate. Respond.**
 
-JalRakshak is an AI-powered disaster intelligence platform that transforms real-time environmental data, IoT telemetry, geospatial intelligence, and citizen reports into actionable hyperlocal flood & landslide risk insights.
+JalRakshak is an AI-powered disaster intelligence platform that integrates environmental data, IoT telemetry, geospatial intelligence, and citizen reports to deliver hyperlocal flood and landslide risk predictions, explainable insights, and actionable early warnings.
 
 ## 🚀 Live Demo
 🔗 https://svj11215.github.io/flash-floods/
 
 ## ⚡ Key Features
-- 🧠 **AI Risk Prediction** — Hyperlocal 0–100% flood & landslide risk scoring
-- 🔍 **Explainable AI** — SHAP-powered insights showing *why* an area is at risk
-- 🗺️ **Geospatial Intelligence** — Risk zones, sensors, rivers, infrastructure & incidents
-- 🧪 **Scenario Simulator** — Cloudburst, drainage failure, river surge & baseline scenarios
-- 📡 **IoT + Citizen Intelligence** — Sensor telemetry combined with crowdsourced reports
-- 🚨 **Decision Support** — Converts risk intelligence into prioritized response actions
+- 🧠 **AI Risk Prediction** — Generates hyperlocal 0–100% flood and landslide risk scores using environmental and terrain data.
+- 🔍 **Explainable AI** — Leverages SHAP-based analysis to identify key factors influencing predicted risk levels.
+- 🗺️ **Geospatial Intelligence** — Visualizes risk zones, sensor locations, rivers, infrastructure, and reported incidents.
+- 🧪 **Scenario Simulator** — Simulates cloudbursts, drainage failures, river surges, and baseline conditions.
+- 📡 **IoT & Citizen Intelligence** — Combines sensor telemetry with crowdsourced incident reports.
+- 🚨 **Decision Support** — Translates risk predictions into prioritized alerts and emergency response recommendations.
 
 ## 🏗️ Tech Stack
-`React 19` · `TypeScript` · `Vite` · `Tailwind CSS` · `Leaflet` · `OpenStreetMap` · `FastAPI` · `Python` · `Machine Learning` · `SHAP`
+`Java 17` · `Spring Boot` · `Spring Data JPA` · `REST APIs` · `MySQL` · `React` · `TypeScript` · `Tailwind CSS` · `Leaflet` · `Python` · `FastAPI` · `Machine Learning` · `SHAP` · `OpenStreetMap`
 
 ## 💡 How It Works
 ```text
-REAL-WORLD DATA
-      ↓
-AI RISK ENGINE
-      ↓
-HYPERLOCAL RISK
-      ↓
-SHAP → WHY?
-      ↓
-SIMULATOR → WHAT IF?
-      ↓
-DECISION SUPPORT → WHAT NOW?
+ENVIRONMENTAL DATA & IoT TELEMETRY
+              ↓
+JAVA SPRING BOOT BACKEND
+              ↓
+PYTHON AI/ML RISK ENGINE
+              ↓
+HYPERLOCAL RISK PREDICTIONS
+              ↓
+SHAP EXPLAINABILITY & SCENARIO SIMULATION
+              ↓
+REST APIs → GEOSPATIAL DASHBOARD
+              ↓
+ALERTS & DECISION SUPPORT
+```
